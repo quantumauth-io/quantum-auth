@@ -1,0 +1,196 @@
+basePath: /
+definitions:
+  server.authChallengeRequest:
+    properties:
+      device_id:
+        type: string
+    type: object
+  server.authChallengeResponse:
+    properties:
+      challenge_id:
+        type: string
+      expires_at:
+        type: string
+      nonce:
+        type: string
+    type: object
+  server.authVerifyRequest:
+    properties:
+      challenge_id:
+        type: string
+      device_id:
+        type: string
+      password:
+        type: string
+      pq_signature:
+        type: string
+      tpm_signature:
+        type: string
+    type: object
+  server.authVerifyResponse:
+    properties:
+      authenticated:
+        type: boolean
+      user_id:
+        type: string
+    type: object
+  server.registerDeviceRequest:
+    properties:
+      pq_public_key:
+        type: string
+      tpm_public_key:
+        type: string
+      user_email:
+        type: string
+    type: object
+  server.registerDeviceResponse:
+    properties:
+      device_id:
+        type: string
+    type: object
+  server.registerUserRequest:
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+    type: object
+  server.registerUserResponse:
+    properties:
+      user_id:
+        type: string
+    type: object
+host: localhost:1042
+info:
+  contact: {}
+  description: Experimental quantum-resistant, hardware-aware auth service.
+  title: Quantum Auth API
+  version: "1.0"
+paths:
+  /auth/challenge:
+    post:
+      consumes:
+      - application/json
+      description: Issues a short-lived challenge (nonce) for a registered device
+      parameters:
+      - description: Challenge request
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/server.authChallengeRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/server.authChallengeResponse'
+        "400":
+          description: invalid input
+          schema:
+            type: string
+        "404":
+          description: device not found
+          schema:
+            type: string
+      summary: Issue auth challenge
+      tags:
+      - auth
+  /auth/verify:
+    post:
+      consumes:
+      - application/json
+      description: Verifies a signed challenge response using TPM and PQ signatures
+        plus password
+      parameters:
+      - description: Verify request
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/server.authVerifyRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/server.authVerifyResponse'
+        "400":
+          description: invalid input
+          schema:
+            type: string
+        "401":
+          description: invalid signature or password
+          schema:
+            $ref: '#/definitions/server.authVerifyResponse'
+        "404":
+          description: challenge or device not found
+          schema:
+            type: string
+      summary: Verify auth response (hybrid TPM + PQ)
+      tags:
+      - auth
+  /devices/register:
+    post:
+      consumes:
+      - application/json
+      description: Registers a new authentication device (TPM + PQ keys) for an existing
+        user
+      parameters:
+      - description: Device registration
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/server.registerDeviceRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/server.registerDeviceResponse'
+        "400":
+          description: invalid input
+          schema:
+            type: string
+        "404":
+          description: user not found
+          schema:
+            type: string
+      summary: Register device
+      tags:
+      - devices
+  /users/register:
+    post:
+      consumes:
+      - application/json
+      description: Creates a new user with email and password
+      parameters:
+      - description: User credentials
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/server.registerUserRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/server.registerUserResponse'
+        "400":
+          description: invalid input
+          schema:
+            type: string
+        "409":
+          description: user already exists
+          schema:
+            type: string
+      summary: Register user
+      tags:
+      - users
+swagger: "2.0"
