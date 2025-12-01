@@ -2,15 +2,23 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"os"
+
+	"time"
 
 	"github.com/cloudflare/circl/sign"
 	"github.com/cloudflare/circl/sign/schemes"
+
+	"github.com/Madeindreams/quantum-auth/pkg/qa/crypto"
+	"github.com/Madeindreams/quantum-auth/pkg/qa/requests"
+	"github.com/Madeindreams/quantum-auth/pkg/tpmdevice"
 )
 
 const (
@@ -18,6 +26,58 @@ const (
 	email    = "device@example.com"
 	password = "secret"
 )
+
+func SignRequest(
+	method, path, host, userID, deviceID string,
+	body []byte,
+	tpmClient tpmdevice.Client,
+	pqSK sign.PrivateKey,
+) (headers map[string]string, err error) {
+
+	// Nonce
+	nonce, err := crypto.RandomBase64(16)
+	if err != nil {
+		return nil, fmt.Errorf("nonce generation failed: %w", err)
+	}
+
+	// Timestamp
+	ts := time.Now().Unix()
+
+	// Canonical string
+	canonical := requests.CanonicalString(requests.CanonicalInput{
+		Method:   method,
+		Path:     path,
+		Host:     host,
+		TS:       ts,
+		Nonce:    nonce,
+		UserID:   userID,
+		DeviceID: deviceID,
+		Body:     body,
+	})
+
+	// TPM sign
+	tpmSig, err := tpmClient.SignB64([]byte(canonical))
+	if err != nil {
+		return nil, fmt.Errorf("tpm sign: %w", err)
+	}
+
+	// PQ sign (using the same pqScheme and private key type you already use)
+	sigBytes := pqScheme.Sign(pqSK, []byte(canonical), nil)
+	if sigBytes == nil {
+		return nil, fmt.Errorf("pq sign failed")
+	}
+	pqSig := base64.RawStdEncoding.EncodeToString(sigBytes)
+
+	// Authorization header
+	headers = map[string]string{
+		"Authorization": fmt.Sprintf(
+			`QuantumAuth user="%s", device="%s", ts="%d", nonce="%s", sig_tpm="%s", sig_pq="%s"`,
+			userID, deviceID, ts, nonce, tpmSig, pqSig,
+		),
+	}
+
+	return headers, nil
+}
 
 // ===== PQ scheme =====
 
@@ -98,12 +158,26 @@ type authVerifyResponse struct {
 func main() {
 	log.Println("device-client starting")
 
-	// 1) TPM client + public key
-	tpmClient, tpmPubB64, err := NewTPMClient()
+	ctx := context.Background()
+
+	tpmCfg := tpmdevice.Config{
+		Handle:   0,     // use default 0x81000001
+		ForceNew: false, // set true if you ever want to rotate the key
+		Logger:   log.New(os.Stderr, "", log.LstdFlags),
+	}
+
+	tpmClient, err := tpmdevice.NewWithConfig(ctx, tpmCfg)
 	if err != nil {
 		log.Fatal("Init TPM failed:", err)
 	}
-	defer tpmClient.Close()
+	defer func(tpmClient tpmdevice.Client) {
+		err = tpmClient.Close()
+		if err != nil {
+			log.Fatal("Close TPM failed:", err)
+		}
+	}(tpmClient)
+
+	tpmPubB64 := tpmClient.PublicKeyB64()
 	log.Println("TPM public key (b64, trunc):", truncate(tpmPubB64))
 
 	// 2) PQ keypair
@@ -153,7 +227,8 @@ func main() {
 	pqSigB64 := base64.RawStdEncoding.EncodeToString(pqSigBytes)
 
 	// 8) TPM sign
-	tpmSigB64, err := tpmClient.Sign(msgBytes)
+	// later, when signing the challenge message:
+	tpmSigB64, err := tpmClient.SignB64(msgBytes)
 	if err != nil {
 		log.Fatal("TPM sign failed:", err)
 	}
@@ -165,6 +240,44 @@ func main() {
 	}
 
 	log.Println("authenticated:", authenticated, "userID:", userID)
+
+	// === 10) Call a protected route ===
+
+	log.Println("calling protected route /api/secure-ping...")
+
+	headers, err := SignRequest(
+		http.MethodGet,
+		"/api/secure-ping",
+		"localhost:1042",
+		userID,
+		deviceID,
+		nil, // no body
+		tpmClient,
+		sk, // PQ secret key
+	)
+	if err != nil {
+		log.Fatal("SignRequest:", err)
+	}
+
+	req, _ := http.NewRequest(
+		http.MethodGet,
+		baseURL+"/api/secure-ping",
+		nil,
+	)
+
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		log.Fatal("protected route call failed:", err)
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	log.Println("secure-ping response code:", resp.StatusCode)
+	log.Println("secure-ping body:", string(bodyBytes))
 }
 
 // ===== helpers: HTTP calls =====
@@ -177,7 +290,13 @@ func registerUser(email, password string) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func(Body io.ReadCloser) {
+		err = Body.Close()
+		if err != nil {
+			log.Println("Close body failed:", err)
+
+		}
+	}(resp.Body)
 
 	if resp.StatusCode == http.StatusCreated {
 		var out registerUserResponse
@@ -188,7 +307,10 @@ func registerUser(email, password string) error {
 
 	// conflict == already exists
 	if resp.StatusCode == http.StatusConflict {
-		io.Copy(io.Discard, resp.Body)
+		_, err = io.Copy(io.Discard, resp.Body)
+		if err != nil {
+			log.Println("error copying body:", err)
+		}
 		log.Println("registerUser: user already exists")
 		return nil
 	}
@@ -209,7 +331,13 @@ func registerDevice(email, tpmPub, pqPub string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+	defer func(Body io.ReadCloser) {
+		err = Body.Close()
+		if err != nil {
+			log.Println("Close body failed:", err)
+
+		}
+	}(resp.Body)
 
 	if resp.StatusCode != http.StatusCreated {
 		bodyBytes, _ := io.ReadAll(resp.Body)
@@ -231,7 +359,12 @@ func requestChallenge(deviceID string) (string, string, error) {
 	if err != nil {
 		return "", "", err
 	}
-	defer resp.Body.Close()
+	defer func(Body io.ReadCloser) {
+		err = Body.Close()
+		if err != nil {
+			log.Println("Close body failed:", err)
+		}
+	}(resp.Body)
 
 	if resp.StatusCode != http.StatusCreated {
 		bodyBytes, _ := io.ReadAll(resp.Body)
@@ -259,7 +392,12 @@ func verifyAuth(chID, devID, password, tpmSig, pqSig string) (bool, string, erro
 	if err != nil {
 		return false, "", err
 	}
-	defer resp.Body.Close()
+	defer func(Body io.ReadCloser) {
+		err = Body.Close()
+		if err != nil {
+			log.Println("Close body failed:", err)
+		}
+	}(resp.Body)
 
 	bodyBytes, _ := io.ReadAll(resp.Body)
 

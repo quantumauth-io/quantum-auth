@@ -8,6 +8,7 @@ import (
 	httpSwagger "github.com/swaggo/http-swagger"
 
 	_ "github.com/Madeindreams/quantum-auth/docs" // swagger docs
+	qa_mw "github.com/Madeindreams/quantum-auth/internal/middleware"
 )
 
 func SetupRouter(store *Store) http.Handler {
@@ -34,6 +35,12 @@ func SetupRouter(store *Store) http.Handler {
 	// auth
 	r.Post("/auth/challenge", api.handleAuthChallenge)
 	r.Post("/auth/verify", api.handleAuthVerify)
+
+	// ---- Protected routes example ----
+	r.Route("/api", func(r chi.Router) {
+		r.With(qa_mw.QuantumAuthMiddleware).
+			Get("/secure-ping", api.handleSecurePing)
+	})
 
 	return r
 }
