@@ -1,4 +1,4 @@
-package server
+package security
 
 import (
 	"crypto/rand"
@@ -32,23 +32,34 @@ func HashPassword(password string) (string, error) {
 	return fmt.Sprintf("%s:%s", saltB64, hashB64), nil
 }
 
-func VerifyPassword(encodedHash, password string) bool {
+func VerifyPassword(encodedHash, password string) (bool, error) {
 	parts := strings.Split(encodedHash, ":")
 	if len(parts) != 2 {
-		return false
+		return false, fmt.Errorf("invalid encoded hash format: %q", encodedHash)
 	}
 
 	salt, err := base64.RawStdEncoding.DecodeString(parts[0])
 	if err != nil {
-		return false
+		return false, fmt.Errorf("decode salt: %w", err)
 	}
 
 	expectedHash, err := base64.RawStdEncoding.DecodeString(parts[1])
 	if err != nil {
-		return false
+		return false, fmt.Errorf("decode hash: %w", err)
 	}
 
-	hash := argon2.IDKey([]byte(password), salt, argonTime, argonMemory, argonThreads, uint32(len(expectedHash)))
+	hash := argon2.IDKey(
+		[]byte(password),
+		salt,
+		argonTime,
+		argonMemory,
+		argonThreads,
+		uint32(len(expectedHash)),
+	)
 
-	return subtle.ConstantTimeCompare(expectedHash, hash) == 1
+	if subtle.ConstantTimeCompare(expectedHash, hash) == 1 {
+		return true, nil
+	}
+
+	return false, nil
 }

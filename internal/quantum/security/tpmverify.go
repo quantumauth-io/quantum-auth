@@ -1,4 +1,4 @@
-package server
+package security
 
 import (
 	"crypto/ecdsa"
@@ -9,12 +9,12 @@ import (
 	"math/big"
 )
 
-// verifyTPMSignature verifies an ECDSA P-256 signature produced by the TPM.
+// VerifyTPMSignature verifies an ECDSA P-256 signature produced by the TPM.
 //
 // pubKeyB64: base64 of uncompressed EC point: 0x04 || X(32) || Y(32)
 // msg:       the raw message bytes (same JSON blob as PQ)
 // sigB64:    base64 of R(32) || S(32) big-endian
-func verifyTPMSignature(pubKeyB64 string, msg []byte, sigB64 string) bool {
+func VerifyTPMSignature(pubKeyB64 string, msg []byte, sigB64 string) bool {
 	pubBytes, err := base64.RawStdEncoding.DecodeString(pubKeyB64)
 	if err != nil {
 		return false

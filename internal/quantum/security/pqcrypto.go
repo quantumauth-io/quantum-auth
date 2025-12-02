@@ -1,4 +1,4 @@
-package server
+package security
 
 import (
 	"encoding/base64"
@@ -19,9 +19,9 @@ func init() {
 	}
 }
 
-// verifyPQSignature verifies a base64-encoded ML-DSA signature
+// VerifyPQSignature verifies a base64-encoded ML-DSA signature
 // against a base64-encoded public key and message bytes.
-func verifyPQSignature(pubKeyB64 string, msg []byte, sigB64 string) bool {
+func VerifyPQSignature(pubKeyB64 string, msg []byte, sigB64 string) bool {
 	pubBytes, err := base64.RawStdEncoding.DecodeString(pubKeyB64)
 	if err != nil {
 		return false

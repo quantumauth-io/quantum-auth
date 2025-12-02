@@ -7,7 +7,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/Madeindreams/quantum-auth/internal/server"
+	"github.com/Madeindreams/quantum-auth/internal/quantum"
+	"github.com/Madeindreams/quantum-go-utils/config"
 )
 
 // @title           Quantum Auth API
@@ -17,13 +18,18 @@ import (
 // @BasePath        /
 func main() {
 
+	cfg, err := config.ParseConfig[quantum.Config]([]string{"./config/", "./cmd/quantum-auth/config/"})
+	if err != nil {
+		log.Fatal("failed to parse config", "error", err)
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	// instantiate service
-	svc, err := server.NewQuantumAuthService(ctx)
+	svc, err := quantum.NewQuantumAuthService(ctx, cfg)
 	if err != nil {
-		log.Fatal("failed to start quantum-auth service: ", err)
+		log.Fatal("failed to start quantum service: ", err)
 	}
 
 	// run service

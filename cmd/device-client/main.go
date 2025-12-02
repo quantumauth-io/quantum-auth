@@ -25,6 +25,8 @@ const (
 	baseURL  = "http://localhost:1042"
 	email    = "device@example.com"
 	password = "secret"
+	label    = "device-client"
+	username = "test-user"
 )
 
 func SignRequest(
@@ -95,11 +97,11 @@ func init() {
 type SignedMessage struct {
 	ChallengeID string `json:"challenge_id"`
 	DeviceID    string `json:"device_id"`
-	Nonce       string `json:"nonce"`
+	Nonce       int64  `json:"nonce"`
 	Purpose     string `json:"purpose"`
 }
 
-func buildSignedMessage(challengeID, deviceID, nonce string) ([]byte, error) {
+func buildSignedMessage(challengeID string, deviceID string, nonce int64) ([]byte, error) {
 	msg := SignedMessage{
 		ChallengeID: challengeID,
 		DeviceID:    deviceID,
@@ -112,6 +114,7 @@ func buildSignedMessage(challengeID, deviceID, nonce string) ([]byte, error) {
 // ===== HTTP DTOs =====
 
 type registerUserRequest struct {
+	UserName string `json:"username"`
 	Email    string `json:"email"`
 	Password string `json:"password"`
 }
@@ -121,7 +124,8 @@ type registerUserResponse struct {
 }
 
 type registerDeviceRequest struct {
-	UserEmail    string `json:"user_email"`
+	UserID       string `json:"user_id"`
+	DeviceLabel  string `json:"device_label"`
 	TPMPublicKey string `json:"tpm_public_key"`
 	PQPublicKey  string `json:"pq_public_key"`
 }
@@ -136,7 +140,7 @@ type authChallengeRequest struct {
 
 type authChallengeResponse struct {
 	ChallengeID string `json:"challenge_id"`
-	Nonce       string `json:"nonce"`
+	Nonce       int64  `json:"nonce"`
 	ExpiresAt   string `json:"expires_at"`
 }
 
@@ -193,14 +197,14 @@ func main() {
 	log.Println("PQ public key (b64, trunc):", truncate(pqPubB64))
 
 	// 3) Register user (ok if already exists)
-	if err := registerUser(email, password); err != nil {
+	userId, err := registerUser(email, password, username)
+	if err != nil {
 		log.Println("registerUser warning:", err)
-	} else {
-		log.Println("user registered")
 	}
 
 	// 4) Register device with TPM + PQ pubkeys
-	deviceID, err := registerDevice(email, tpmPubB64, pqPubB64)
+	log.Println("registerUser:", userId)
+	deviceID, err := registerDevice(userId, label, tpmPubB64, pqPubB64)
 	if err != nil {
 		log.Fatal("registerDevice failed:", err)
 	}
@@ -215,6 +219,8 @@ func main() {
 
 	// 6) Build structured message
 	msgBytes, err := buildSignedMessage(challengeID, deviceID, nonce)
+	log.Println("client msg:", base64.StdEncoding.EncodeToString(msgBytes))
+
 	if err != nil {
 		log.Fatal("buildSignedMessage failed:", err)
 	}
@@ -281,53 +287,46 @@ func main() {
 }
 
 // ===== helpers: HTTP calls =====
-
-func registerUser(email, password string) error {
-	reqBody := registerUserRequest{Email: email, Password: password}
+func registerUser(email, password string, username string) (string, error) {
+	reqBody := registerUserRequest{Email: email, Password: password, UserName: username}
 	b, _ := json.Marshal(reqBody)
 
 	resp, err := http.Post(baseURL+"/users/register", "application/json", bytes.NewReader(b))
 	if err != nil {
-		return err
+		log.Println("----register failed:", err)
+		return "", err
 	}
-	defer func(Body io.ReadCloser) {
-		err = Body.Close()
-		if err != nil {
-			log.Println("Close body failed:", err)
+	defer resp.Body.Close()
 
-		}
-	}(resp.Body)
+	bodyBytes, _ := io.ReadAll(resp.Body)
+
+	log.Println("registerUser raw body:", string(bodyBytes))
 
 	if resp.StatusCode == http.StatusCreated {
 		var out registerUserResponse
-		_ = json.NewDecoder(resp.Body).Decode(&out)
-		log.Println("registerUser: created user", out.UserID)
-		return nil
-	}
-
-	// conflict == already exists
-	if resp.StatusCode == http.StatusConflict {
-		_, err = io.Copy(io.Discard, resp.Body)
-		if err != nil {
-			log.Println("error copying body:", err)
+		if err := json.Unmarshal(bodyBytes, &out); err != nil {
+			log.Println("registerUser: decode error:", err, "body:", string(bodyBytes))
+			return "", err
 		}
-		log.Println("registerUser: user already exists")
-		return nil
+		log.Println("registerUser: created user", out.UserID)
+		return out.UserID, nil
 	}
 
-	bodyBytes, _ := io.ReadAll(resp.Body)
-	return fmt.Errorf("registerUser: status %d: %s", resp.StatusCode, string(bodyBytes))
+	return "", fmt.Errorf("registerUser: status %d: %s", resp.StatusCode, string(bodyBytes))
 }
 
-func registerDevice(email, tpmPub, pqPub string) (string, error) {
+func registerDevice(userId, label, tpmPub, pqPub string) (string, error) {
+	log.Println("registerDevice:", userId, label, tpmPub, pqPub)
 	reqBody := registerDeviceRequest{
-		UserEmail:    email,
+		UserID:       userId,
+		DeviceLabel:  label,
 		TPMPublicKey: tpmPub,
 		PQPublicKey:  pqPub,
 	}
 	b, _ := json.Marshal(reqBody)
 
 	resp, err := http.Post(baseURL+"/devices/register", "application/json", bytes.NewReader(b))
+	log.Println("registerDevice: response code:", resp)
 	if err != nil {
 		return "", err
 	}
@@ -341,6 +340,7 @@ func registerDevice(email, tpmPub, pqPub string) (string, error) {
 
 	if resp.StatusCode != http.StatusCreated {
 		bodyBytes, _ := io.ReadAll(resp.Body)
+		log.Println("registerDevice: returned body", string(bodyBytes))
 		return "", fmt.Errorf("registerDevice: status %d: %s", resp.StatusCode, string(bodyBytes))
 	}
 
@@ -351,13 +351,13 @@ func registerDevice(email, tpmPub, pqPub string) (string, error) {
 	return out.DeviceID, nil
 }
 
-func requestChallenge(deviceID string) (string, string, error) {
+func requestChallenge(deviceID string) (string, int64, error) {
 	reqBody := authChallengeRequest{DeviceID: deviceID}
 	b, _ := json.Marshal(reqBody)
 
 	resp, err := http.Post(baseURL+"/auth/challenge", "application/json", bytes.NewReader(b))
 	if err != nil {
-		return "", "", err
+		return "", 0, err
 	}
 	defer func(Body io.ReadCloser) {
 		err = Body.Close()
@@ -368,12 +368,12 @@ func requestChallenge(deviceID string) (string, string, error) {
 
 	if resp.StatusCode != http.StatusCreated {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		return "", "", fmt.Errorf("requestChallenge: status %d: %s", resp.StatusCode, string(bodyBytes))
+		return "", 0, fmt.Errorf("requestChallenge: status %d: %s", resp.StatusCode, string(bodyBytes))
 	}
 
 	var out authChallengeResponse
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
-		return "", "", err
+		return "", 0, err
 	}
 	return out.ChallengeID, out.Nonce, nil
 }

@@ -3,7 +3,7 @@
 CREATE TABLE IF NOT EXISTS auth_challenges (
                                                challenge_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                                                device_id    UUID NOT NULL REFERENCES devices (device_id) ON DELETE CASCADE,
-                                               nonce        STRING       NOT NULL,
+                                               nonce        INT       NOT NULL,
                                                expires_at   TIMESTAMPTZ  NOT NULL,
                                                created_at   TIMESTAMPTZ  NOT NULL DEFAULT now()
 );

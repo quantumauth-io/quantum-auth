@@ -1,11 +1,37 @@
 basePath: /
 definitions:
-  server.authChallengeRequest:
+  quantumhttp.SecurePingResponse:
+    properties:
+      device_id:
+        type: string
+      message:
+        type: string
+      status:
+        type: string
+      user_id:
+        type: string
+    type: object
+  quantumhttp.SignupRequest:
+    properties:
+      email:
+        type: string
+      firstName:
+        type: string
+      lastName:
+        type: string
+      password:
+        type: string
+      username:
+        type: string
+    required:
+    - email
+    type: object
+  quantumhttp.authChallengeRequest:
     properties:
       device_id:
         type: string
     type: object
-  server.authChallengeResponse:
+  quantumhttp.authChallengeResponse:
     properties:
       challenge_id:
         type: string
@@ -14,7 +40,7 @@ definitions:
       nonce:
         type: string
     type: object
-  server.authVerifyRequest:
+  quantumhttp.authVerifyRequest:
     properties:
       challenge_id:
         type: string
@@ -27,15 +53,17 @@ definitions:
       tpm_signature:
         type: string
     type: object
-  server.authVerifyResponse:
+  quantumhttp.authVerifyResponse:
     properties:
       authenticated:
         type: boolean
       user_id:
         type: string
     type: object
-  server.registerDeviceRequest:
+  quantumhttp.registerDeviceRequest:
     properties:
+      device_label:
+        type: string
       pq_public_key:
         type: string
       tpm_public_key:
@@ -43,21 +71,9 @@ definitions:
       user_email:
         type: string
     type: object
-  server.registerDeviceResponse:
+  quantumhttp.registerDeviceResponse:
     properties:
       device_id:
-        type: string
-    type: object
-  server.registerUserRequest:
-    properties:
-      email:
-        type: string
-      password:
-        type: string
-    type: object
-  server.registerUserResponse:
-    properties:
-      user_id:
         type: string
     type: object
 host: localhost:1042
@@ -67,6 +83,23 @@ info:
   title: Quantum Auth API
   version: "1.0"
 paths:
+  /api/secure-ping:
+    get:
+      description: Confirms that the request was authenticated using TPM + PQ signatures.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/quantumhttp.SecurePingResponse'
+        "401":
+          description: unauthorized
+          schema:
+            type: string
+      summary: Quantum-secured ping
+      tags:
+      - secure
   /auth/challenge:
     post:
       consumes:
@@ -78,14 +111,14 @@ paths:
         name: payload
         required: true
         schema:
-          $ref: '#/definitions/server.authChallengeRequest'
+          $ref: '#/definitions/quantumhttp.authChallengeRequest'
       produces:
       - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/server.authChallengeResponse'
+            $ref: '#/definitions/quantumhttp.authChallengeResponse'
         "400":
           description: invalid input
           schema:
@@ -109,14 +142,14 @@ paths:
         name: payload
         required: true
         schema:
-          $ref: '#/definitions/server.authVerifyRequest'
+          $ref: '#/definitions/quantumhttp.authVerifyRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/server.authVerifyResponse'
+            $ref: '#/definitions/quantumhttp.authVerifyResponse'
         "400":
           description: invalid input
           schema:
@@ -124,7 +157,7 @@ paths:
         "401":
           description: invalid signature or password
           schema:
-            $ref: '#/definitions/server.authVerifyResponse'
+            $ref: '#/definitions/quantumhttp.authVerifyResponse'
         "404":
           description: challenge or device not found
           schema:
@@ -144,14 +177,14 @@ paths:
         name: payload
         required: true
         schema:
-          $ref: '#/definitions/server.registerDeviceRequest'
+          $ref: '#/definitions/quantumhttp.registerDeviceRequest'
       produces:
       - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/server.registerDeviceResponse'
+            $ref: '#/definitions/quantumhttp.registerDeviceResponse'
         "400":
           description: invalid input
           schema:
@@ -167,30 +200,30 @@ paths:
     post:
       consumes:
       - application/json
-      description: Creates a new user with email and password
+      description: Create a user account
       parameters:
-      - description: User credentials
+      - description: Signup payload
         in: body
         name: payload
         required: true
         schema:
-          $ref: '#/definitions/server.registerUserRequest'
+          $ref: '#/definitions/quantumhttp.SignupRequest'
       produces:
       - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/server.registerUserResponse'
+            additionalProperties:
+              type: string
+            type: object
         "400":
-          description: invalid input
+          description: Bad Request
           schema:
-            type: string
-        "409":
-          description: user already exists
-          schema:
-            type: string
-      summary: Register user
+            additionalProperties:
+              type: string
+            type: object
+      summary: Signup
       tags:
-      - users
+      - auth
 swagger: "2.0"

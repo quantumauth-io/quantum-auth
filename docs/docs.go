@@ -15,6 +15,32 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/api/secure-ping": {
+            "get": {
+                "description": "Confirms that the request was authenticated using TPM + PQ signatures.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "secure"
+                ],
+                "summary": "Quantum-secured ping",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/quantumhttp.SecurePingResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
         "/auth/challenge": {
             "post": {
                 "description": "Issues a short-lived challenge (nonce) for a registered device",
@@ -35,7 +61,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/server.authChallengeRequest"
+                            "$ref": "#/definitions/quantumhttp.authChallengeRequest"
                         }
                     }
                 ],
@@ -43,7 +69,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/server.authChallengeResponse"
+                            "$ref": "#/definitions/quantumhttp.authChallengeResponse"
                         }
                     },
                     "400": {
@@ -81,7 +107,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/server.authVerifyRequest"
+                            "$ref": "#/definitions/quantumhttp.authVerifyRequest"
                         }
                     }
                 ],
@@ -89,7 +115,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/server.authVerifyResponse"
+                            "$ref": "#/definitions/quantumhttp.authVerifyResponse"
                         }
                     },
                     "400": {
@@ -101,7 +127,7 @@ const docTemplate = `{
                     "401": {
                         "description": "invalid signature or password",
                         "schema": {
-                            "$ref": "#/definitions/server.authVerifyResponse"
+                            "$ref": "#/definitions/quantumhttp.authVerifyResponse"
                         }
                     },
                     "404": {
@@ -133,7 +159,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/server.registerDeviceRequest"
+                            "$ref": "#/definitions/quantumhttp.registerDeviceRequest"
                         }
                     }
                 ],
@@ -141,7 +167,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/server.registerDeviceResponse"
+                            "$ref": "#/definitions/quantumhttp.registerDeviceResponse"
                         }
                     },
                     "400": {
@@ -161,7 +187,7 @@ const docTemplate = `{
         },
         "/users/register": {
             "post": {
-                "description": "Creates a new user with email and password",
+                "description": "Create a user account",
                 "consumes": [
                     "application/json"
                 ],
@@ -169,17 +195,17 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "users"
+                    "auth"
                 ],
-                "summary": "Register user",
+                "summary": "Signup",
                 "parameters": [
                     {
-                        "description": "User credentials",
+                        "description": "Signup payload",
                         "name": "payload",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/server.registerUserRequest"
+                            "$ref": "#/definitions/quantumhttp.SignupRequest"
                         }
                     }
                 ],
@@ -187,19 +213,19 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/server.registerUserResponse"
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
                         }
                     },
                     "400": {
-                        "description": "invalid input",
+                        "description": "Bad Request",
                         "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "409": {
-                        "description": "user already exists",
-                        "schema": {
-                            "type": "string"
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
                         }
                     }
                 }
@@ -207,7 +233,47 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "server.authChallengeRequest": {
+        "quantumhttp.SecurePingResponse": {
+            "type": "object",
+            "properties": {
+                "device_id": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "quantumhttp.SignupRequest": {
+            "type": "object",
+            "required": [
+                "email"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string"
+                },
+                "firstName": {
+                    "type": "string"
+                },
+                "lastName": {
+                    "type": "string"
+                },
+                "password": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "quantumhttp.authChallengeRequest": {
             "type": "object",
             "properties": {
                 "device_id": {
@@ -215,7 +281,7 @@ const docTemplate = `{
                 }
             }
         },
-        "server.authChallengeResponse": {
+        "quantumhttp.authChallengeResponse": {
             "type": "object",
             "properties": {
                 "challenge_id": {
@@ -229,7 +295,7 @@ const docTemplate = `{
                 }
             }
         },
-        "server.authVerifyRequest": {
+        "quantumhttp.authVerifyRequest": {
             "type": "object",
             "properties": {
                 "challenge_id": {
@@ -249,7 +315,7 @@ const docTemplate = `{
                 }
             }
         },
-        "server.authVerifyResponse": {
+        "quantumhttp.authVerifyResponse": {
             "type": "object",
             "properties": {
                 "authenticated": {
@@ -260,9 +326,12 @@ const docTemplate = `{
                 }
             }
         },
-        "server.registerDeviceRequest": {
+        "quantumhttp.registerDeviceRequest": {
             "type": "object",
             "properties": {
+                "device_label": {
+                    "type": "string"
+                },
                 "pq_public_key": {
                     "type": "string"
                 },
@@ -274,29 +343,10 @@ const docTemplate = `{
                 }
             }
         },
-        "server.registerDeviceResponse": {
+        "quantumhttp.registerDeviceResponse": {
             "type": "object",
             "properties": {
                 "device_id": {
-                    "type": "string"
-                }
-            }
-        },
-        "server.registerUserRequest": {
-            "type": "object",
-            "properties": {
-                "email": {
-                    "type": "string"
-                },
-                "password": {
-                    "type": "string"
-                }
-            }
-        },
-        "server.registerUserResponse": {
-            "type": "object",
-            "properties": {
-                "user_id": {
                     "type": "string"
                 }
             }
