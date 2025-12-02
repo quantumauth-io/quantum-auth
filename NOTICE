@@ -1,0 +1,24 @@
+QuantumAuth — Post-Quantum Authentication System
+Copyright © 2025 Ian Dorion (Madeindreams)
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+
+ATTRIBUTION NOTICE:
+Any use, reproduction, or distribution of this software
+MUST retain this notice and give clear credit to:
+
+   “QuantumAuth — created by Ian Dorion (Madeindreams)”
+   https://github.com/Madeindreams/quantum-auth
+
+This notice must be included in:
+ - Documentation
+ - “About” or “Credits” sections
+ - Any public-facing product or service that integrates QuantumAuth
+ - Any redistribution of the source code or binaries
+
+TRADEMARK NOTICE:
+“QuantumAuth”, “Quantum Resistant Authentication”, “Madeindreams”
+and related branding MAY NOT be used without prior written permission.
+
+This NOTICE file forms a required part of all distributions.

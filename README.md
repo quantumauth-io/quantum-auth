@@ -1,130 +1,96 @@
 # QuantumAuth
-### **Military-Grade, Post-Quantum, Hardware-Backed Authentication**
+### Military-Grade Post-Quantum Authentication Framework
+![Powered by QuantumAuth](https://img.shields.io/badge/Powered%20By-QuantumAuth-blue?style=for-the-badge&logo=shield)
 
-QuantumAuth is a next-generation authentication framework delivering **the strongest security posture currently achievable in civilian technology**.  
-It combines **TPM hardware-rooted signing**, **post-quantum cryptography**, and **Argon2id quantum-resistant password hashing** — all **without issuing bearer tokens**.
+QuantumAuth is the world's first **fully integrated TPM + Post-Quantum (PQ) signature authentication system**, designed to eliminate passwords, prevent replay attacks, and guarantee identity at the hardware level.
 
-Even if attackers steal your entire database or intercept all network traffic, **authentication cannot be forged**.
+QuantumAuth provides:
 
-This architecture mirrors — and in some areas exceeds — principles used in **classified military and critical-infrastructure systems** (to the extent publicly known).
+- **TPM-backed hardware signatures**
+- **ML-DSA-65 post-quantum signatures (CIRCL)**
+- **Argon2id quantum-resistant password hashing**
+- **Replay protection via Redis nonce-tracking**
+- **Strict canonical request signing**
+- **Zero bearer tokens**
+- **Zero trust, zero reuse, zero impersonation**
 
----
-
-## 🚀 Key Security Features
-
-### ✅ **1. Hardware-Rooted TPM Signatures (ECC P-256, non-extractable)**
-Each client device generates and stores its signing key **inside the TPM**.  
-The private key **never leaves hardware** and cannot be extracted or brute-forced.
-
-Every authentication step requires a real TPM signature — making stolen credentials useless.
+This is authentication at a level previously considered “military-only”.
 
 ---
 
-### ✅ **2. Post-Quantum Signatures (ML-DSA-65)**
-QuantumAuth double-signs every request using a **post-quantum signature scheme** from Cloudflare’s CIRCL.
+## 🚀 Architecture Overview
 
-This protects against:
+QuantumAuth consists of:
 
-- Future quantum computers
-- Traffic recording + delayed decryption
-- Long-term cryptanalytic attacks
+### **1. QuantumAuth Server (Go)**
+Handles:
+- User management
+- Device registration (TPM + PQ public keys)
+- Challenge generation & verification
+- Secure middleware
+- Replay protection
+- Database (CockroachDB) + Redis
 
-Even if classical crypto falls, your auth remains intact.
+### **2. QuantumAuth Client (Cross-Platform Service)**
+Runs locally on user devices:
+- TPM key management
+- PQ keypair generation
+- Challenge signing
+- CLI + local web dashboard
+- Provides signed headers to any app
 
----
+### **3. Zero-Trust Integration**
+Any third-party server can authenticate requests by forwarding:
 
-### ✅ **3. Argon2id Quantum-Resistant Password Hashing**
-Passwords are hashed using **Argon2id**, the cutting-edge password hashing algorithm designed to resist:
+```Authorization: QuantumAuth user="...", device="...", ts="...", nonce="...", sig_tpm="...", sig_pq="..."```
 
-- GPU/ASIC brute force
-- Memory-hard attacks
-- Quantum amplitude amplification
-
-A stolen database doesn’t compromise user passwords.
-
----
-
-### ✅ **4. Zero Bearer Tokens — Every Request Must Be Signed**
-QuantumAuth **does not generate tokens** (JWT, OAuth tokens, sessions, etc.).
-
-Why?  
-Bearer tokens behave like **keys that unlock everything** if stolen.
-
-Instead, every request must be signed in real time:
-
-TPM hardware signature + Post-Quantum signature + Argon2 password
-
-Token theft becomes **meaningless**.
+Zero passwords.  
+Zero secrets stored on servers.  
+Zero attack surface.
 
 ---
 
-### ✅ **5. Redis-Backed Replay Protection**
-Each request includes:
+## 📦 Installation (coming soon)
 
-- A timestamp
-- A unique per-device nonce
-- UserID
-- DeviceID
+A full client installer will be provided for:
 
-Nonces are tracked in Redis and rejected once used.
-
-Replay attacks become **impossible**, even on insecure networks.
+- Linux
+- macOS (Intel + M1/M2)
+- Windows
+- Android
+- iOS (via app extension)
 
 ---
 
-## 🛡️ Why This Is (Probably) The Most Secure Public Auth System on Earth
+## 📜 License
 
-QuantumAuth requires **two independent cryptographic signatures**, both valid at the same time:
+This project is licensed under the **Apache License 2.0** (see `LICENSE`).
 
-TPM (hardware sealed key)
-+
-Post-Quantum signature
-+
-Argon2id password check
+Commercial licenses are available for SaaS companies, cybersecurity firms, and enterprises.  
+See `COMMERCIAL-LICENSE.md` or contact:
 
-
-This stack is unmatched in public authentication systems.
-
-| Security Property                | Supported | How |
-|--------------------------------|-----------|-----|
-| Password database stolen        | ✅ | Argon2id hashing |
-| Token/session hijacking         | ✅ | No tokens used |
-| MITM attacks                    | ✅ | TPM + PQ verification |
-| Replay attacks                  | ✅ | Redis nonce tracking |
-| Quantum attacks                 | ✅ | ML-DSA post-quantum signing |
-| Device cloning                  | ❌ | TPM keys cannot be extracted |
-| Credential phishing             | ⚠️ | Signing each request limits attacker value |
-
-Short of classified or government-restricted systems, **there is nothing else with this combination of guarantees**.
+**Ian Decentralize**  
+📧 *insert your email here*
 
 ---
 
-## 🚧 Development Status
+## 🏛 Attribution Requirement
 
-QuantumAuth is designed as:
+If you use QuantumAuth in a product, website, or service, include:
 
-- A **Golang backend authentication layer**
-- A **hardware-backed device client**
-- Future: **JS/TS library**, **Secure-Enclave mobile support**, **PQ-Passkey integration**
+Powered by QuantumAuth — created by Ian Decentralize (Madeindreams)
+https://github.com/Madeindreams/quantum-auth
 
-Follow the project to get early access to:
-
-- Documentation
-- Client SDKs
-- Examples
-- Production deployment guidance
+This is **required** by the NOTICE file and Apache 2.0.
 
 ---
 
-## ⭐ Stay Updated
+## 🤝 Contributing
 
-This project is under active development.  
-Star the repo to follow progress and upcoming announcements.
+See `CONTRIBUTING.md`.
 
+---
 
-## dev
-generate swagger
-```bash
- swag init -g cmd/quantum-auth/main.go -o docs
-```
+## 🔐 Security
 
+See `SECURITY.md` for vulnerability reporting.
