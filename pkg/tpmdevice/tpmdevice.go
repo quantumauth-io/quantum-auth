@@ -32,19 +32,16 @@ type client struct {
 }
 
 type Config struct {
-	Handle   tpmutil.Handle
-	ForceNew bool
-	Logger   *log.Logger
+	Handle    tpmutil.Handle
+	ForceNew  bool
+	OwnerAuth string // NEW: TPM owner hierarchy auth (usually "")
+	Logger    *log.Logger
 }
 
 func logf(logger *log.Logger, format string, args ...interface{}) {
 	if logger != nil {
 		logger.Printf(format, args...)
 	}
-}
-
-func New(ctx context.Context, handle tpmutil.Handle) (Client, error) {
-	return NewWithConfig(ctx, Config{Handle: handle})
 }
 
 func NewWithConfig(_ context.Context, cfg Config) (Client, error) {
@@ -58,10 +55,12 @@ func NewWithConfig(_ context.Context, cfg Config) (Client, error) {
 		return nil, err
 	}
 
+	// If ForceNew, remove any existing persistent object at this handle.
 	if cfg.ForceNew {
-		_ = tpm2.EvictControl(rwc, "", tpm2.HandleOwner, handle, handle)
+		_ = tpm2.EvictControl(rwc, cfg.OwnerAuth, tpm2.HandleOwner, handle, handle)
 	}
 
+	// Try to reuse an existing persistent key if ForceNew == false.
 	if !cfg.ForceNew {
 		pub, _, _, err := tpm2.ReadPublic(rwc, handle)
 		if err == nil {
@@ -71,7 +70,7 @@ func NewWithConfig(_ context.Context, cfg Config) (Client, error) {
 				return nil, err
 			}
 			pubB64 := base64.RawStdEncoding.EncodeToString(uncompressed)
-			logf(cfg.Logger, "tpmdevice: using existing key at 0x%x", handle)
+			logf(cfg.Logger, "tpmdevice: using existing persistent key at 0x%x", handle)
 			return &client{
 				rwc:    rwc,
 				handle: handle,
@@ -89,31 +88,29 @@ func NewWithConfig(_ context.Context, cfg Config) (Client, error) {
 		return nil, err
 	}
 
-	// Persist at the chosen handle.
-	// Try to persist at the chosen handle.
-	// If EvictControl fails (hierarchy issues, permissions, etc.),
-	// fall back to using the transient handle instead of aborting.
-	if err := tpm2.EvictControl(rwc, "", tpm2.HandleOwner, transient, handle); err != nil {
-		logf(cfg.Logger, "tpmdevice: EvictControl failed (%v), using transient handle 0x%x", err, transient)
-
-		pubB64 := base64.RawStdEncoding.EncodeToString(uncompressed)
-		return &client{
-			rwc:    rwc,
-			handle: transient, // keep transient handle
-			pub:    uncompressed,
-			pubB64: pubB64,
-		}, nil
+	// Persist at the chosen handle. If this fails, we *do not* fall back;
+	// persistence is required for stable device identity.
+	if err := tpm2.EvictControl(
+		rwc,
+		cfg.OwnerAuth,
+		tpm2.HandleOwner,
+		transient,
+		handle,
+	); err != nil {
+		_ = tpm2.FlushContext(rwc, transient)
+		_ = rwc.Close()
+		return nil, fmt.Errorf("tpmdevice: EvictControl (persist key) failed at 0x%x: %w", handle, err)
 	}
 
-	// EvictControl succeeded; we can flush transient and use the persistent handle.
+	// EvictControl succeeded; flush transient and use the persistent handle.
 	_ = tpm2.FlushContext(rwc, transient)
 
 	pubB64 := base64.RawStdEncoding.EncodeToString(uncompressed)
-	logf(cfg.Logger, "tpmdevice: created key at 0x%x", handle)
+	logf(cfg.Logger, "tpmdevice: created persistent key at 0x%x", handle)
 
 	return &client{
 		rwc:    rwc,
-		handle: handle, // persistent
+		handle: handle,
 		pub:    uncompressed,
 		pubB64: pubB64,
 	}, nil
@@ -159,7 +156,7 @@ func createPrimarySigningKey(rwc io.ReadWriter, logger *log.Logger) (tpmutil.Han
 			continue
 		}
 
-		logf(logger, "tpmdevice: CreatePrimary OK in 0x%x (0x%x)", h, handle)
+		logf(logger, "tpmdevice: CreatePrimary OK in 0x%x (handle 0x%x)", h, handle)
 
 		pub, _, _, err := tpm2.ReadPublic(rwc, handle)
 		if err != nil {

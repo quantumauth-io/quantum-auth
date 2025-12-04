@@ -477,13 +477,16 @@ func (h *Handler) SecurePing(c *gin.Context) {
 // @Router       /auth/full-login [post]
 func (h *Handler) FullLogin(c *gin.Context) {
 	var req fullLoginRequest
+
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
+	log.Info("full login", "req", req)
+
 	if req.UserID == "" || req.DeviceID == "" || req.Password == "" ||
-		req.Message == "" || req.TPMSignature == "" || req.PQSignature == "" {
+		req.MessageB64 == "" || req.TPMSignature == "" || req.PQSignature == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "user_id, device_id, password, message, tpm_signature, pq_signature are required",
 		})
@@ -540,7 +543,7 @@ func (h *Handler) FullLogin(c *gin.Context) {
 		TS       int64  `json:"ts"`
 	}
 
-	msgBytes := []byte(req.Message)
+	msgBytes, err := base64.StdEncoding.DecodeString(req.MessageB64)
 	var msg loginMessage
 	if err := json.Unmarshal(msgBytes, &msg); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid message JSON"})
@@ -569,6 +572,9 @@ func (h *Handler) FullLogin(c *gin.Context) {
 	)
 
 	// 5) Verify TPM signature
+
+	log.Info("server TPM pub", "pub", d.TPMPublicKey)
+
 	okTPM := security.VerifyTPMSignature(d.TPMPublicKey, msgBytes, req.TPMSignature)
 	log.Info("full login: verify TPM", "ok", okTPM)
 	if !okTPM {

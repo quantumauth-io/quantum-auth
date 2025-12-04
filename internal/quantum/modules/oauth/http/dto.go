@@ -113,7 +113,7 @@ type fullLoginRequest struct {
 	UserID       string `json:"user_id"`
 	DeviceID     string `json:"device_id"`
 	Password     string `json:"password"`
-	Message      string `json:"message"`
+	MessageB64   string `json:"message_b64"`
 	TPMSignature string `json:"tpm_signature"`
 	PQSignature  string `json:"pq_signature"`
 }

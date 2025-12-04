@@ -75,7 +75,11 @@ func NewQuantumAuthService(ctx context.Context, cfg *Config) (*Service, error) {
 
 	repo := quantumdb.NewRepository(db)
 
-	r := gin.Default()
+	gin.SetMode(gin.ReleaseMode)
+
+	r := gin.New()
+	r.Use(gin.Logger())
+	r.Use(gin.Recovery())
 	_ = r.SetTrustedProxies(nil)
 
 	routes := quantumhttp.NewRoutes(ctx, repo, redisDB)
