@@ -61,11 +61,11 @@ func QuantumAuthMiddleware(cfg Config) gin.HandlerFunc {
 		userID := params["user"]
 		deviceID := params["device"]
 		tsStr := params["ts"]
-		nonce := params["nonce"]
+		nonceStr := params["nonce"]
 		sigTPM := params["sig_tpm"]
 		sigPQ := params["sig_pq"]
 
-		if userID == "" || deviceID == "" || tsStr == "" || nonce == "" || sigTPM == "" || sigPQ == "" {
+		if userID == "" || deviceID == "" || tsStr == "" || nonceStr == "" || sigTPM == "" || sigPQ == "" {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "incomplete QuantumAuth header"})
 			return
 		}
@@ -84,7 +84,7 @@ func QuantumAuthMiddleware(cfg Config) gin.HandlerFunc {
 
 		// 3. Replay protection via Redis (deviceID + nonce)
 		if cfg.Redis != nil {
-			key := fmt.Sprintf("qa:nonce:%s:%s", deviceID, nonce)
+			key := fmt.Sprintf("qa:nonce:%s:%s", deviceID, nonceStr)
 			ok, err := cfg.Redis.SetNX(ctx, key, "1", cfg.NonceTTL).Result()
 			if err != nil {
 				c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "nonce store error"})
@@ -111,6 +111,12 @@ func QuantumAuthMiddleware(cfg Config) gin.HandlerFunc {
 		body, _ := io.ReadAll(r.Body)
 		r.Body = io.NopCloser(bytes.NewBuffer(body))
 
+		nonceInt, err := strconv.ParseInt(nonceStr, 10, 64)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid nonce in Authorization header"})
+			return
+		}
+
 		// IMPORTANT: canonical path must match what the client signed.
 		// If your public base path is /quantum-auth/v1, the client should
 		// sign "/quantum-auth/v1/api/secure-ping" or you should strip the prefix here.
@@ -119,7 +125,7 @@ func QuantumAuthMiddleware(cfg Config) gin.HandlerFunc {
 			Path:     r.URL.Path,
 			Host:     r.Host,
 			TS:       ts,
-			Nonce:    nonce,
+			Nonce:    nonceInt,
 			UserID:   userID,
 			DeviceID: deviceID,
 			Body:     body,

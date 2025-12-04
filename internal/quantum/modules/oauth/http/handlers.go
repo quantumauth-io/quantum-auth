@@ -2,6 +2,7 @@ package quantumhttp
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -11,7 +12,6 @@ import (
 
 	"github.com/Madeindreams/quantum-auth/internal/quantum/database"
 	"github.com/Madeindreams/quantum-auth/internal/quantum/security"
-	qareq "github.com/Madeindreams/quantum-auth/pkg/qa/requests"
 	"github.com/Madeindreams/quantum-go-utils/log"
 	//"github.com/Madeindreams/quantum-auth/internal/quantum/transport/http/middleware"
 	//"github.com/Madeindreams/quantum-go-utils/log"
@@ -232,6 +232,7 @@ func (h *Handler) AuthVerify(c *gin.Context) {
 			break
 		}
 	}
+	log.Info("auth header", "authHeader", authHeader)
 	if authHeader == "" {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing Authorization header"})
 		return
@@ -246,11 +247,11 @@ func (h *Handler) AuthVerify(c *gin.Context) {
 	userID := fields["user"]
 	deviceID := fields["device"]
 	tsStr := fields["ts"]
-	nonce := fields["nonce"]
+	nonceStr := fields["nonce"]
 	sigTPM := fields["sig_tpm"]
 	sigPQ := fields["sig_pq"]
 
-	if userID == "" || deviceID == "" || tsStr == "" || nonce == "" || sigTPM == "" || sigPQ == "" {
+	if userID == "" || deviceID == "" || tsStr == "" || nonceStr == "" || sigTPM == "" || sigPQ == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "missing fields in Authorization header"})
 		return
 	}
@@ -260,6 +261,34 @@ func (h *Handler) AuthVerify(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid ts in Authorization header"})
 		return
 	}
+
+	nonceInt, err := strconv.ParseInt(nonceStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid nonce in Authorization header"})
+		return
+	}
+
+	// 2) Find canonical from header
+	canonicalB64 := ""
+	for k, v := range req.Headers {
+		if strings.ToLower(k) == "x-quantumauth-canonical-b64" {
+			canonicalB64 = v
+			break
+		}
+	}
+	if canonicalB64 == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "missing X-QuantumAuth-Canonical-B64 header"})
+		return
+	}
+
+	msgBytes, err := base64.StdEncoding.DecodeString(canonicalB64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid canonical base64"})
+		return
+	}
+
+	// (optional) debug: log canonical
+	log.Info("canonical", "value", string(msgBytes), "ts", tsInt, "nonce", nonceInt)
 
 	// 2) Get Host header (needed for canonical string)
 	host := ""
@@ -299,18 +328,16 @@ func (h *Handler) AuthVerify(c *gin.Context) {
 	}
 
 	// 4) Rebuild canonical string exactly like qa.Client.SignRequest
-	canonical := qareq.CanonicalString(qareq.CanonicalInput{
-		Method:   req.Method,
-		Path:     req.Path,
-		Host:     host,
-		TS:       tsInt,
-		Nonce:    nonce,
-		UserID:   userID,
-		DeviceID: deviceID,
-		Body:     nil, // we used nil in SignRequest for this flow
-	})
-
-	msgBytes := []byte(canonical)
+	//canonical := qareq.CanonicalString(qareq.CanonicalInput{
+	//	Method:   req.Method,
+	//	Path:     req.Path,
+	//	Host:     host,
+	//	TS:       tsInt,
+	//	Nonce:    nonceInt,
+	//	UserID:   userID,
+	//	DeviceID: deviceID,
+	//	Body:     nil, // we used nil in SignRequest for this flow
+	//})
 
 	// 5) Verify TPM signature
 	okTPM := security.VerifyTPMSignature(d.TPMPublicKey, msgBytes, sigTPM)
