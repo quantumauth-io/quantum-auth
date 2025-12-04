@@ -11,4 +11,4 @@ Services include:
 - High-security architecture design
 
 Contact:
-madeindreams@protonmail.com
+ian.dorion@quantumauth.io

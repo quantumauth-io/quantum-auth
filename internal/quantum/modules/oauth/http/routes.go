@@ -49,6 +49,7 @@ func (r *Routes) Register(api *gin.RouterGroup) {
 	// ---- Auth (challenge + verify) ----
 	api.POST("/auth/challenge", r.h.AuthChallenge)
 	api.POST("/auth/verify", r.h.AuthVerify)
+	api.POST("/auth/full-login", r.h.FullLogin)
 
 	// ---- Protected routes example (/api/secure-ping) ----
 	secured := api.Group("/api")

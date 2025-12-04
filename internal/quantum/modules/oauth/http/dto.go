@@ -1,6 +1,9 @@
 package quantumhttp
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 type authChallengeRequest struct {
 	DeviceID string `json:"device_id"`
@@ -45,11 +48,10 @@ type Device struct {
 }
 
 type authVerifyRequest struct {
-	ChallengeID  string `json:"challenge_id"`
-	DeviceID     string `json:"device_id"`
-	Password     string `json:"password"`
-	TPMSignature string `json:"tpm_signature"`
-	PQSignature  string `json:"pq_signature"`
+	Method    string            `json:"method"`
+	Path      string            `json:"path"`
+	Headers   map[string]string `json:"headers"`
+	Encrypted json.RawMessage   `json:"encrypted"` // keep for future decryption
 }
 
 type SignedMessage struct {
@@ -105,4 +107,19 @@ type MeResponse struct {
 	Username  string `json:"username,omitempty"`
 	FirstName string `json:"firstName,omitempty"`
 	LastName  string `json:"lastName,omitempty"`
+}
+
+type fullLoginRequest struct {
+	UserID       string `json:"user_id"`
+	DeviceID     string `json:"device_id"`
+	Password     string `json:"password"`
+	Message      string `json:"message"`
+	TPMSignature string `json:"tpm_signature"`
+	PQSignature  string `json:"pq_signature"`
+}
+
+type fullLoginResponse struct {
+	Authenticated bool   `json:"authenticated"`
+	UserID        string `json:"user_id"`
+	DeviceID      string `json:"device_id"`
 }

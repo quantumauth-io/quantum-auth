@@ -11,7 +11,6 @@ import (
 
 	quantumdb "github.com/Madeindreams/quantum-auth/internal/quantum/database"
 	quantumhttp "github.com/Madeindreams/quantum-auth/internal/quantum/modules/oauth/http"
-	transport "github.com/Madeindreams/quantum-auth/internal/quantum/transport/http"
 	"github.com/gin-gonic/gin"
 
 	"github.com/Madeindreams/quantum-go-utils/database"
@@ -77,9 +76,12 @@ func NewQuantumAuthService(ctx context.Context, cfg *Config) (*Service, error) {
 	repo := quantumdb.NewRepository(db)
 
 	r := gin.Default()
+	_ = r.SetTrustedProxies(nil)
+
 	routes := quantumhttp.NewRoutes(ctx, repo, redisDB)
 	routes.Register(r.Group(ApiBase))
-	engine := transport.BuildEngine(routes)
+
+	engine := r
 
 	httpSrv := &http.Server{
 		Addr:    net.JoinHostPort(cfg.SwaggerHTTPConfig.Host, cfg.SwaggerHTTPConfig.Port),

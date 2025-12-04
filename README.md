@@ -78,7 +78,7 @@ See `COMMERCIAL-LICENSE.md` or contact:
 
 If you use QuantumAuth in a product, website, or service, include:
 
-Powered by QuantumAuth — created by Ian Decentralize (Madeindreams)
+Powered by QuantumAuth — created by Ian Dorion (Madeindreams)
 https://github.com/Madeindreams/quantum-auth
 
 This is **required** by the NOTICE file and Apache 2.0.

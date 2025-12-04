@@ -2,16 +2,17 @@ package quantumhttp
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Madeindreams/quantum-auth/internal/quantum/database"
 	"github.com/Madeindreams/quantum-auth/internal/quantum/security"
+	qareq "github.com/Madeindreams/quantum-auth/pkg/qa/requests"
 	"github.com/Madeindreams/quantum-go-utils/log"
-
 	//"github.com/Madeindreams/quantum-auth/internal/quantum/transport/http/middleware"
 	//"github.com/Madeindreams/quantum-go-utils/log"
 	"github.com/gin-gonic/gin"
@@ -192,6 +193,19 @@ func (h *Handler) AuthChallenge(c *gin.Context) {
 // @Failure      401      {object} authVerifyResponse "invalid signature or password"
 // @Failure      404      {string} string "challenge or device not found"
 // @Router       /auth/verify [post]
+// AuthVerify
+// @BasePath /quantum-auth/v1
+// @Summary      Verify signed QuantumAuth request
+// @Description  Verifies TPM + PQ signatures in the Authorization header for an API request
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        payload  body      authVerifyRequest   true  "Verify request"
+// @Success      200      {object}  authVerifyResponse
+// @Failure      400      {string}  string "invalid input"
+// @Failure      401      {object}  authVerifyResponse "unauthorized"
+// @Failure      404      {string}  string "user or device not found"
+// @Router       /auth/verify [post]
 func (h *Handler) AuthVerify(c *gin.Context) {
 	var req authVerifyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -199,103 +213,155 @@ func (h *Handler) AuthVerify(c *gin.Context) {
 		return
 	}
 
-	log.Info("auth verify request", "req", req)
-
-	if req.ChallengeID == "" || req.DeviceID == "" || req.Password == "" ||
-		req.TPMSignature == "" || req.PQSignature == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "challenge_id, device_id, password, tpm_signature, pq_signature are required"})
+	if req.Method == "" || req.Path == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "method and path are required"})
 		return
 	}
 
-	ch, err := h.repo.GetChallenge(h.ctx, req.ChallengeID)
-	if ch == nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "challenge not found"})
+	// headers from Node middleware (keys likely lowercase)
+	if req.Headers == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "headers are required"})
 		return
 	}
 
-	if ch.DeviceID != req.DeviceID {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "device id mismatch"})
+	// 1) Extract Authorization header
+	authHeader := ""
+	for k, v := range req.Headers {
+		if strings.ToLower(k) == "authorization" {
+			authHeader = v
+			break
+		}
+	}
+	if authHeader == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing Authorization header"})
 		return
 	}
 
-	if time.Now().After(ch.ExpiresAt) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "challenge expired"})
+	fields, err := parseQuantumAuthHeader(authHeader)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid Authorization header"})
 		return
 	}
 
-	d, err := h.repo.GetDeviceByID(h.ctx, req.DeviceID)
+	userID := fields["user"]
+	deviceID := fields["device"]
+	tsStr := fields["ts"]
+	nonce := fields["nonce"]
+	sigTPM := fields["sig_tpm"]
+	sigPQ := fields["sig_pq"]
+
+	if userID == "" || deviceID == "" || tsStr == "" || nonce == "" || sigTPM == "" || sigPQ == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "missing fields in Authorization header"})
+		return
+	}
+
+	tsInt, err := strconv.ParseInt(tsStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid ts in Authorization header"})
+		return
+	}
+
+	// 2) Get Host header (needed for canonical string)
+	host := ""
+	for k, v := range req.Headers {
+		if strings.ToLower(k) == "host" {
+			host = v
+			break
+		}
+	}
+	if host == "" {
+		host = "unknown"
+	}
+
+	// 3) Look up device + user
+	d, err := h.repo.GetDeviceByID(h.ctx, deviceID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
 	}
 	if d == nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "device not found"})
 		return
 	}
+	if d.UserID != userID {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "device does not belong to user"})
+		return
+	}
 
-	user, err := h.repo.GetUserByID(h.ctx, d.UserID)
+	user, err := h.repo.GetUserByID(h.ctx, userID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
 	}
 	if user == nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
 		return
 	}
 
-	// 1) verify password
-	ok, err := security.VerifyPassword(user.PasswordHash, req.Password)
-	log.Info("verify password",
-		"hash", user.PasswordHash,
-		"password", req.Password,
-		"ok", ok,
-		"err", err,
-	)
+	// 4) Rebuild canonical string exactly like qa.Client.SignRequest
+	canonical := qareq.CanonicalString(qareq.CanonicalInput{
+		Method:   req.Method,
+		Path:     req.Path,
+		Host:     host,
+		TS:       tsInt,
+		Nonce:    nonce,
+		UserID:   userID,
+		DeviceID: deviceID,
+		Body:     nil, // we used nil in SignRequest for this flow
+	})
 
-	if err != nil {
-		// if you want, treat internal error as 500
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
-		return
-	}
+	msgBytes := []byte(canonical)
 
-	msgBytes, err := buildSignedMessage(ch, req.DeviceID)
-	log.Info("server msg", "msg",
-		base64.StdEncoding.EncodeToString(msgBytes))
-
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	// 3) verify TPM signature
-	okTPM := security.VerifyTPMSignature(d.TPMPublicKey, msgBytes, req.TPMSignature)
+	// 5) Verify TPM signature
+	okTPM := security.VerifyTPMSignature(d.TPMPublicKey, msgBytes, sigTPM)
 	log.Info("verify TPM", "ok", okTPM)
 	if !okTPM {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized (TPM)"})
 		return
 	}
 
-	// 4) verify PQ signature
-	okPQ := security.VerifyPQSignature(d.PQPublicKey, msgBytes, req.PQSignature)
+	// 6) Verify PQ signature
+	okPQ := security.VerifyPQSignature(d.PQPublicKey, msgBytes, sigPQ)
 	log.Info("verify PQ", "ok", okPQ)
 	if !okPQ {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized (PQ)"})
 		return
 	}
 
-	// success: destroy challenge to prevent replay
-	err = h.repo.DeleteChallenge(h.ctx, ch.ID)
-	if err != nil {
-		log.Error("Error deleting challenge: ", "error", err)
-		return
-	}
+	// TODO: if you want, you can also:
+	//  - verify X-QuantumAuth-Challenge-ID exists & not expired
+	//  - track/reject replayed Authorization nonces in Redis
 
 	c.JSON(http.StatusOK, authVerifyResponse{
 		Authenticated: true,
 		UserID:        user.ID,
 	})
+}
+
+func parseQuantumAuthHeader(auth string) (map[string]string, error) {
+	const prefix = "QuantumAuth "
+	if !strings.HasPrefix(auth, prefix) {
+		return nil, fmt.Errorf("invalid scheme")
+	}
+	rest := strings.TrimSpace(auth[len(prefix):])
+	parts := strings.Split(rest, ",")
+	fields := make(map[string]string, len(parts))
+
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		kv := strings.SplitN(p, "=", 2)
+		if len(kv) != 2 {
+			continue
+		}
+		key := strings.TrimSpace(kv[0])
+		val := strings.TrimSpace(kv[1])
+		val = strings.Trim(val, `"`)
+		fields[key] = val
+	}
+	return fields, nil
 }
 
 // RegisterDevice
@@ -366,5 +432,135 @@ func (h *Handler) SecurePing(c *gin.Context) {
 		"message":   "Quantum-authenticated request successful",
 		"user_id":   userID,
 		"device_id": deviceID,
+	})
+}
+
+// FullLogin
+// @BasePath /quantum-auth/v1
+// @Summary      Full device login (password + TPM + PQ)
+// @Description  Authenticates a device by verifying the user's password and both TPM & PQ signatures over a login message.
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        payload  body      fullLoginRequest   true  "Full login request"
+// @Success      200      {object}  fullLoginResponse
+// @Failure      400      {string}  string  "invalid input"
+// @Failure      401      {string}  string  "unauthorized"
+// @Failure      404      {string}  string  "user or device not found"
+// @Router       /auth/full-login [post]
+func (h *Handler) FullLogin(c *gin.Context) {
+	var req fullLoginRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if req.UserID == "" || req.DeviceID == "" || req.Password == "" ||
+		req.Message == "" || req.TPMSignature == "" || req.PQSignature == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "user_id, device_id, password, message, tpm_signature, pq_signature are required",
+		})
+		return
+	}
+
+	// 1) Load device
+	d, err := h.repo.GetDeviceByID(h.ctx, req.DeviceID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if d == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "device not found"})
+		return
+	}
+	if d.UserID != req.UserID {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "device does not belong to user"})
+		return
+	}
+
+	// 2) Load user
+	user, err := h.repo.GetUserByID(h.ctx, req.UserID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if user == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	// 3) Verify password
+	ok, err := security.VerifyPassword(user.PasswordHash, req.Password)
+	log.Info("full login: verify password",
+		"user_id", user.ID,
+		"ok", ok,
+		"err", err,
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
+		return
+	}
+
+	// 4) Parse and validate the login message
+	type loginMessage struct {
+		UserID   string `json:"user_id"`
+		DeviceID string `json:"device_id"`
+		Purpose  string `json:"purpose"`
+		TS       int64  `json:"ts"`
+	}
+
+	msgBytes := []byte(req.Message)
+	var msg loginMessage
+	if err := json.Unmarshal(msgBytes, &msg); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid message JSON"})
+		return
+	}
+
+	if msg.UserID != req.UserID || msg.DeviceID != req.DeviceID {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "message user/device mismatch"})
+		return
+	}
+	if msg.Purpose != "client-login" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid message purpose"})
+		return
+	}
+
+	// Optional: freshness check
+	// if time.Since(time.Unix(msg.TS, 0)) > 5*time.Minute {
+	// 	c.JSON(http.StatusBadRequest, gin.H{"error": "login message too old"})
+	// 	return
+	// }
+
+	log.Info("full login: msg",
+		"user_id", msg.UserID,
+		"device_id", msg.DeviceID,
+		"purpose", msg.Purpose,
+	)
+
+	// 5) Verify TPM signature
+	okTPM := security.VerifyTPMSignature(d.TPMPublicKey, msgBytes, req.TPMSignature)
+	log.Info("full login: verify TPM", "ok", okTPM)
+	if !okTPM {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	// 6) Verify PQ signature
+	okPQ := security.VerifyPQSignature(d.PQPublicKey, msgBytes, req.PQSignature)
+	log.Info("full login: verify PQ", "ok", okPQ)
+	if !okPQ {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	// success
+	c.JSON(http.StatusOK, fullLoginResponse{
+		Authenticated: true,
+		UserID:        user.ID,
+		DeviceID:      d.ID,
 	})
 }

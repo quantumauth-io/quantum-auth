@@ -13,7 +13,7 @@ type CanonicalInput struct {
 	Host   string
 
 	TS       int64
-	Nonce    string
+	Nonce    int64
 	UserID   string
 	DeviceID string
 
@@ -28,7 +28,7 @@ func CanonicalString(ci CanonicalInput) string {
 		ci.Path,
 		ci.Host,
 		fmt.Sprintf("TS: %d", ci.TS),
-		fmt.Sprintf("NONCE: %s", ci.Nonce),
+		fmt.Sprintf("NONCE: %d", ci.Nonce),
 		fmt.Sprintf("USER: %s", ci.UserID),
 		fmt.Sprintf("DEVICE: %s", ci.DeviceID),
 		fmt.Sprintf("BODY-SHA256: %s", hex.EncodeToString(bodyHash[:])),
