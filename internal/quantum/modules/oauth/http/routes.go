@@ -5,7 +5,6 @@ import (
 
 	quantumdb "github.com/Madeindreams/quantum-auth/internal/quantum/database"
 	qamw "github.com/Madeindreams/quantum-auth/internal/quantum/transport/http/middleware"
-	"github.com/redis/go-redis/v9"
 
 	"github.com/gin-gonic/gin"
 
@@ -18,15 +17,13 @@ import (
 type Routes struct {
 	h    *Handler
 	repo *quantumdb.QuantumAuthRepository
-	rdb  *redis.Client
 }
 
 // NewRoutes wires the HTTP handler with the QuantumAuthRepository and Redis.
-func NewRoutes(ctx context.Context, repo *quantumdb.QuantumAuthRepository, rdb *redis.Client) *Routes {
+func NewRoutes(ctx context.Context, repo *quantumdb.QuantumAuthRepository) *Routes {
 	return &Routes{
-		h:    NewHandler(ctx, repo, rdb),
+		h:    NewHandler(ctx, repo),
 		repo: repo,
-		rdb:  rdb,
 	}
 }
 
@@ -54,8 +51,7 @@ func (r *Routes) Register(api *gin.RouterGroup) {
 	// ---- Protected routes example (/api/secure-ping) ----
 	secured := api.Group("/api")
 	secured.Use(qamw.QuantumAuthMiddleware(qamw.Config{
-		Repo:  r.repo,
-		Redis: r.rdb,
+		Repo: r.repo,
 		// NonceTTL: 5 * time.Minute, // optional: override default window
 	}))
 	secured.GET("/secure-ping", r.h.SecurePing)

@@ -6,22 +6,19 @@ import (
 	"crypto/elliptic"
 	"crypto/sha256"
 	"encoding/base64"
-	"fmt"
 	"io"
 	"math"
 	"math/big"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
+	quantumdb "github.com/Madeindreams/quantum-auth/internal/quantum/database"
+	"github.com/Madeindreams/quantum-auth/pkg/qa/requests"
+	"github.com/Madeindreams/quantum-go-utils/log"
 	"github.com/cloudflare/circl/sign"
 	"github.com/cloudflare/circl/sign/schemes"
 	"github.com/gin-gonic/gin"
-	"github.com/redis/go-redis/v9"
-
-	quantumdb "github.com/Madeindreams/quantum-auth/internal/quantum/database"
-	"github.com/Madeindreams/quantum-auth/pkg/qa/requests"
 )
 
 var pqScheme sign.Scheme
@@ -36,7 +33,6 @@ func init() {
 // Config for the QuantumAuth middleware.
 type Config struct {
 	Repo     *quantumdb.QuantumAuthRepository
-	Redis    *redis.Client
 	NonceTTL time.Duration // replay window for nonces; default 5m if zero
 }
 
@@ -58,42 +54,53 @@ func QuantumAuthMiddleware(cfg Config) gin.HandlerFunc {
 		}
 
 		params := parseAuthParams(auth[len("QuantumAuth "):])
-		userID := params["user"]
-		deviceID := params["device"]
-		tsStr := params["ts"]
-		nonceStr := params["nonce"]
+		challengeID := params["challenge"]
 		sigTPM := params["sig_tpm"]
 		sigPQ := params["sig_pq"]
 
-		if userID == "" || deviceID == "" || tsStr == "" || nonceStr == "" || sigTPM == "" || sigPQ == "" {
+		if challengeID == "" || sigTPM == "" || sigPQ == "" {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "incomplete QuantumAuth header"})
 			return
 		}
 
-		// 2. Timestamp window
-		ts, err := strconv.ParseInt(tsStr, 10, 64)
-		if err != nil {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid timestamp"})
+		// 2) Find canonical from header
+		canonicalB64 := r.Header.Get("X-QuantumAuth-Canonical-B64")
+		if canonicalB64 == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "missing X-QuantumAuth-Canonical-B64 header"})
 			return
 		}
+
+		msgBytes, err := base64.StdEncoding.DecodeString(canonicalB64)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid canonical base64"})
+			return
+		}
+
+		parsed, err := requests.ParseCanonicalString(string(msgBytes))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid canonical format"})
+			return
+		}
+
+		// now you have:
+		userID := parsed.UserID
+		deviceID := parsed.DeviceID
+		challengeID = parsed.ChallengeID
+		ts := parsed.TS
+		_ = parsed.BodySHA256 // unused for now
+
+		// (optional) debug: log canonical
+		log.Info("canonical", "value", string(msgBytes), "ts", ts, "challenge", challengeID)
+
 		now := time.Now().Unix()
 		if math.Abs(float64(now-ts)) > 30 {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "timestamp skew"})
 			return
 		}
 
-		// 3. Replay protection via Redis (deviceID + nonce)
-		if cfg.Redis != nil {
-			key := fmt.Sprintf("qa:nonce:%s:%s", deviceID, nonceStr)
-			ok, err := cfg.Redis.SetNX(ctx, key, "1", cfg.NonceTTL).Result()
-			if err != nil {
-				c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "nonce store error"})
-				return
-			}
-			if !ok {
-				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "replay detected"})
-				return
-			}
+		err = cfg.Repo.DeleteChallenge(ctx, challengeID)
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "challenge delete error"})
 		}
 
 		// 4. Load device from DB to get public keys
@@ -111,24 +118,18 @@ func QuantumAuthMiddleware(cfg Config) gin.HandlerFunc {
 		body, _ := io.ReadAll(r.Body)
 		r.Body = io.NopCloser(bytes.NewBuffer(body))
 
-		nonceInt, err := strconv.ParseInt(nonceStr, 10, 64)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid nonce in Authorization header"})
-			return
-		}
-
 		// IMPORTANT: canonical path must match what the client signed.
 		// If your public base path is /quantum-auth/v1, the client should
 		// sign "/quantum-auth/v1/api/secure-ping" or you should strip the prefix here.
 		canonical := requests.CanonicalString(requests.CanonicalInput{
-			Method:   r.Method,
-			Path:     r.URL.Path,
-			Host:     r.Host,
-			TS:       ts,
-			Nonce:    nonceInt,
-			UserID:   userID,
-			DeviceID: deviceID,
-			Body:     body,
+			Method:      r.Method,
+			Path:        r.URL.Path,
+			Host:        r.Host,
+			TS:          ts,
+			ChallengeID: challengeID,
+			UserID:      userID,
+			DeviceID:    deviceID,
+			Body:        body,
 		})
 
 		// 6. Verify TPM signature

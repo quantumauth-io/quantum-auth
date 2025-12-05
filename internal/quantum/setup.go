@@ -17,11 +17,9 @@ import (
 	"github.com/Madeindreams/quantum-go-utils/log"
 	rdb "github.com/Madeindreams/quantum-go-utils/redis"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
-	"github.com/redis/go-redis/v9"
 )
 
 type Service struct {
-	rdb        *redis.Client
 	repo       *quantumdb.QuantumAuthRepository
 	httpServer *http.Server
 }
@@ -62,17 +60,6 @@ func NewQuantumAuthService(ctx context.Context, cfg *Config) (*Service, error) {
 		return nil, err
 	}
 
-	redisDB, err := rdb.NewClient(ctx, rdb.Config{
-		Host:     cfg.RedisConfig.Host,
-		Port:     cfg.RedisConfig.Port,
-		Password: os.Getenv("REDIS_PASSWORD"),
-	})
-
-	if err != nil {
-		log.Error("Failed to create redis instance", "err", err)
-		return nil, err
-	}
-
 	repo := quantumdb.NewRepository(db)
 
 	gin.SetMode(gin.ReleaseMode)
@@ -82,7 +69,7 @@ func NewQuantumAuthService(ctx context.Context, cfg *Config) (*Service, error) {
 	r.Use(gin.Recovery())
 	_ = r.SetTrustedProxies(nil)
 
-	routes := quantumhttp.NewRoutes(ctx, repo, redisDB)
+	routes := quantumhttp.NewRoutes(ctx, repo)
 	routes.Register(r.Group(ApiBase))
 
 	engine := r
@@ -94,7 +81,6 @@ func NewQuantumAuthService(ctx context.Context, cfg *Config) (*Service, error) {
 
 	return &Service{
 		httpServer: httpSrv,
-		rdb:        redisDB,
 		repo:       repo,
 	}, nil
 }

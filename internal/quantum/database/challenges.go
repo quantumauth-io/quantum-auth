@@ -25,15 +25,14 @@ type CreateChallengeInput struct {
 // CreateChallenge inserts a new challenge into the database.
 func (r *QuantumAuthRepository) CreateChallenge(ctx context.Context, in *CreateChallengeInput) (string, error) {
 	const query = `
-		INSERT INTO auth_challenges (device_id, nonce, expires_at)
-		VALUES ($1, $2, $3)
+		INSERT INTO auth_challenges (device_id, expires_at)
+		VALUES ($1, $2)
 		RETURNING challenge_id;
 	`
 
 	var id string
 	resultRow, err := r.db.QueryRow(ctx, query,
 		in.DeviceID,
-		in.Nonce,
 		in.ExpiresAt,
 	)
 	if err != nil {
@@ -52,7 +51,7 @@ func (r *QuantumAuthRepository) CreateChallenge(ctx context.Context, in *CreateC
 // GetChallenge retrieves a challenge by its ID.
 func (r *QuantumAuthRepository) GetChallenge(ctx context.Context, challengeID string) (*Challenge, error) {
 	const query = `
-		SELECT challenge_id, device_id, nonce, expires_at, created_at
+		SELECT challenge_id, device_id, expires_at, created_at
 		FROM auth_challenges
 		WHERE challenge_id = $1;
 	`
@@ -81,6 +80,8 @@ func (r *QuantumAuthRepository) GetChallenge(ctx context.Context, challengeID st
 
 // DeleteChallenge removes a challenge once it has been consumed.
 func (r *QuantumAuthRepository) DeleteChallenge(ctx context.Context, challengeID string) error {
+
+	log.Info("deleting challenge", "challenge_id", challengeID)
 	const query = `
 		DELETE FROM auth_challenges
 		WHERE challenge_id = $1;

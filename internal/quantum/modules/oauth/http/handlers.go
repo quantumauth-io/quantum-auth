@@ -6,55 +6,31 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/Madeindreams/quantum-auth/internal/quantum/database"
 	"github.com/Madeindreams/quantum-auth/internal/quantum/security"
+	"github.com/Madeindreams/quantum-auth/pkg/qa/requests"
 	"github.com/Madeindreams/quantum-go-utils/log"
-	//"github.com/Madeindreams/quantum-auth/internal/quantum/transport/http/middleware"
-	//"github.com/Madeindreams/quantum-go-utils/log"
 	"github.com/gin-gonic/gin"
-	"github.com/redis/go-redis/v9"
 )
 
 type Handler struct {
 	ctx  context.Context
 	repo *database.QuantumAuthRepository
-	rdb  *redis.Client
 }
 
-const nonceKeyPrefix = "qa:nonce:device:"
-
-func (h *Handler) nextNonce(ctx context.Context, deviceID string) (int64, error) {
-	if h.rdb == nil {
-		return 0, fmt.Errorf("redis client not configured")
-	}
-
-	key := nonceKeyPrefix + deviceID
-
-	// INCR is atomic in Redis.
-	n, err := h.rdb.Incr(ctx, key).Result()
-	if err != nil {
-		return 0, err
-	}
-
-	return n, nil
-}
-
-func NewHandler(ctx context.Context, repo *database.QuantumAuthRepository, rdb *redis.Client) *Handler {
+func NewHandler(ctx context.Context, repo *database.QuantumAuthRepository) *Handler {
 	return &Handler{
 		ctx:  ctx,
 		repo: repo,
-		rdb:  rdb,
 	}
 }
 
-func NewChallenge(deviceID string, ttl time.Duration, nonce int64) *database.CreateChallengeInput {
+func NewChallenge(deviceID string, ttl time.Duration) *database.CreateChallengeInput {
 	return &database.CreateChallengeInput{
 		DeviceID:  deviceID,
-		Nonce:     nonce,
 		ExpiresAt: time.Now().Add(ttl),
 	}
 }
@@ -66,16 +42,6 @@ func NewDevice(userID, deviceLabel string, tpmPublicKey, pqPublicKey string) *da
 		TPMPublicKey: tpmPublicKey,
 		PQPublicKey:  pqPublicKey,
 	}
-}
-
-func buildSignedMessage(ch *database.Challenge, deviceID string) ([]byte, error) {
-	msg := SignedMessage{
-		ChallengeID: ch.ID,
-		DeviceID:    deviceID,
-		Nonce:       ch.Nonce,
-		Purpose:     "auth",
-	}
-	return json.Marshal(msg)
 }
 
 // RegisterUser godoc
@@ -158,19 +124,12 @@ func (h *Handler) AuthChallenge(c *gin.Context) {
 		return
 	}
 
-	nonce, err := h.nextNonce(c.Request.Context(), req.DeviceID)
-	if err != nil {
-		c.String(http.StatusInternalServerError, "failed to generate nonce")
-		return
-	}
-
 	// 2-minute TTL for now
-	ch := NewChallenge(d.ID, 2*time.Minute, nonce)
+	ch := NewChallenge(d.ID, 2*time.Minute)
 	challengeId, err := h.repo.CreateChallenge(h.ctx, ch)
 
 	resp := authChallengeResponse{
 		ChallengeID: challengeId,
-		Nonce:       nonce,
 		ExpiresAt:   ch.ExpiresAt,
 	}
 
@@ -180,19 +139,6 @@ func (h *Handler) AuthChallenge(c *gin.Context) {
 	c.JSON(http.StatusCreated, resp)
 }
 
-// AuthVerify
-// @BasePath /quantum-auth/v1
-// @Summary      Verify auth response (hybrid TPM + PQ)
-// @Description  Verifies a signed challenge response using TPM and PQ signatures plus password
-// @Tags         auth
-// @Accept       json
-// @Produce      json
-// @Param        payload  body      authVerifyRequest   true  "Verify request"
-// @Success      200      {object} authVerifyResponse
-// @Failure      400      {string} string "invalid input"
-// @Failure      401      {object} authVerifyResponse "invalid signature or password"
-// @Failure      404      {string} string "challenge or device not found"
-// @Router       /auth/verify [post]
 // AuthVerify
 // @BasePath /quantum-auth/v1
 // @Summary      Verify signed QuantumAuth request
@@ -244,27 +190,12 @@ func (h *Handler) AuthVerify(c *gin.Context) {
 		return
 	}
 
-	userID := fields["user"]
-	deviceID := fields["device"]
-	tsStr := fields["ts"]
-	nonceStr := fields["nonce"]
+	challengeID := fields["challenge"]
 	sigTPM := fields["sig_tpm"]
 	sigPQ := fields["sig_pq"]
 
-	if userID == "" || deviceID == "" || tsStr == "" || nonceStr == "" || sigTPM == "" || sigPQ == "" {
+	if sigTPM == "" || sigPQ == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "missing fields in Authorization header"})
-		return
-	}
-
-	tsInt, err := strconv.ParseInt(tsStr, 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid ts in Authorization header"})
-		return
-	}
-
-	nonceInt, err := strconv.ParseInt(nonceStr, 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid nonce in Authorization header"})
 		return
 	}
 
@@ -287,8 +218,21 @@ func (h *Handler) AuthVerify(c *gin.Context) {
 		return
 	}
 
+	parsed, err := requests.ParseCanonicalString(string(msgBytes))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid canonical format"})
+		return
+	}
+
+	// now you have:
+	userID := parsed.UserID
+	deviceID := parsed.DeviceID
+	challengeID = parsed.ChallengeID
+	ts := parsed.TS
+	_ = parsed.BodySHA256 // unused for now
+
 	// (optional) debug: log canonical
-	log.Info("canonical", "value", string(msgBytes), "ts", tsInt, "nonce", nonceInt)
+	log.Info("canonical", "value", string(msgBytes), "ts", ts, "challenge", challengeID)
 
 	// 2) Get Host header (needed for canonical string)
 	host := ""
@@ -325,6 +269,11 @@ func (h *Handler) AuthVerify(c *gin.Context) {
 	if user == nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
 		return
+	}
+
+	err = h.repo.DeleteChallenge(h.ctx, challengeID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 	}
 
 	// 4) Rebuild canonical string exactly like qa.Client.SignRequest
