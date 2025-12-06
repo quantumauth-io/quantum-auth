@@ -3,32 +3,18 @@
 package tpmdevice
 
 import (
+	"fmt"
 	"io"
 
-	"github.com/google/go-tpm/tpm2/transport"
-	"github.com/google/go-tpm/tpm2/transport/windowstpm"
+	tpm2 "github.com/google/go-tpm/legacy/tpm2"
 )
 
-// tpmRWCloser adapts a transport.TPMCloser to io.ReadWriteCloser so it works
-// with github.com/google/go-tpm/legacy/tpm2.
-type tpmRWCloser struct {
-	io.ReadWriter
-	closer io.Closer
-}
-
-func (t *tpmRWCloser) Close() error {
-	return t.closer.Close()
-}
-
-// openTPM on Windows: use TBS via windowstpm.
+// openTPM on Windows: use legacy tpm2.OpenTPM, which talks to the TPM
+// via the Windows TBS layer.
 func openTPM() (io.ReadWriteCloser, error) {
-	tpm, err := windowstpm.Open()
+	rwc, err := tpm2.OpenTPM()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("tpmdevice: OpenTPM (windows) failed: %w", err)
 	}
-	rw := transport.ToReadWriter(tpm)
-	return &tpmRWCloser{
-		ReadWriter: rw,
-		closer:     tpm,
-	}, nil
+	return rwc, nil
 }
