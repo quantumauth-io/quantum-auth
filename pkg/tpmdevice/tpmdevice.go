@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"runtime"
 
 	tpm2 "github.com/google/go-tpm/legacy/tpm2"
 	"github.com/google/go-tpm/tpmutil"
@@ -44,76 +45,82 @@ func logf(logger *log.Logger, format string, args ...interface{}) {
 	}
 }
 
-func NewWithConfig(_ context.Context, cfg Config) (Client, error) {
-	handle := cfg.Handle
-	if handle == 0 {
-		handle = defaultHandle
-	}
-
-	rwc, err := openTPM()
-	if err != nil {
-		return nil, err
-	}
-
-	// If ForceNew, remove any existing persistent object at this handle.
-	if cfg.ForceNew {
-		_ = tpm2.EvictControl(rwc, cfg.OwnerAuth, tpm2.HandleOwner, handle, handle)
-	}
-
-	// Try to reuse an existing persistent key if ForceNew == false.
-	if !cfg.ForceNew {
-		pub, _, _, err := tpm2.ReadPublic(rwc, handle)
-		if err == nil {
-			uncompressed, err := publicToUncompressed(pub)
-			if err != nil {
-				_ = rwc.Close()
-				return nil, err
-			}
-			pubB64 := base64.RawStdEncoding.EncodeToString(uncompressed)
-			logf(cfg.Logger, "tpmdevice: using existing persistent key at 0x%x", handle)
-			return &client{
-				rwc:    rwc,
-				handle: handle,
-				pub:    uncompressed,
-				pubB64: pubB64,
-			}, nil
+func NewWithConfig(ctx context.Context, cfg Config) (Client, error) {
+	switch runtime.GOOS {
+	case "darwin":
+		// Enclave backend (cgo)
+		return newEnclaveClient(ctx, cfg)
+	default:
+		handle := cfg.Handle
+		if handle == 0 {
+			handle = defaultHandle
 		}
-		logf(cfg.Logger, "tpmdevice: no existing key at 0x%x: %v", handle, err)
-	}
 
-	// Create a new primary signing key under some hierarchy.
-	transient, uncompressed, err := createPrimarySigningKey(rwc, cfg.Logger)
-	if err != nil {
-		_ = rwc.Close()
-		return nil, err
-	}
+		rwc, err := openTPM()
+		if err != nil {
+			return nil, err
+		}
 
-	// Persist at the chosen handle. If this fails, we *do not* fall back;
-	// persistence is required for stable device identity.
-	if err := tpm2.EvictControl(
-		rwc,
-		cfg.OwnerAuth,
-		tpm2.HandleOwner,
-		transient,
-		handle,
-	); err != nil {
+		// If ForceNew, remove any existing persistent object at this handle.
+		if cfg.ForceNew {
+			_ = tpm2.EvictControl(rwc, cfg.OwnerAuth, tpm2.HandleOwner, handle, handle)
+		}
+
+		// Try to reuse an existing persistent key if ForceNew == false.
+		if !cfg.ForceNew {
+			pub, _, _, err := tpm2.ReadPublic(rwc, handle)
+			if err == nil {
+				uncompressed, err := publicToUncompressed(pub)
+				if err != nil {
+					_ = rwc.Close()
+					return nil, err
+				}
+				pubB64 := base64.RawStdEncoding.EncodeToString(uncompressed)
+				logf(cfg.Logger, "tpmdevice: using existing persistent key at 0x%x", handle)
+				return &client{
+					rwc:    rwc,
+					handle: handle,
+					pub:    uncompressed,
+					pubB64: pubB64,
+				}, nil
+			}
+			logf(cfg.Logger, "tpmdevice: no existing key at 0x%x: %v", handle, err)
+		}
+
+		// Create a new primary signing key under some hierarchy.
+		transient, uncompressed, err := createPrimarySigningKey(rwc, cfg.Logger)
+		if err != nil {
+			_ = rwc.Close()
+			return nil, err
+		}
+
+		// Persist at the chosen handle. If this fails, we *do not* fall back;
+		// persistence is required for stable device identity.
+		if err := tpm2.EvictControl(
+			rwc,
+			cfg.OwnerAuth,
+			tpm2.HandleOwner,
+			transient,
+			handle,
+		); err != nil {
+			_ = tpm2.FlushContext(rwc, transient)
+			_ = rwc.Close()
+			return nil, fmt.Errorf("tpmdevice: EvictControl (persist key) failed at 0x%x: %w", handle, err)
+		}
+
+		// EvictControl succeeded; flush transient and use the persistent handle.
 		_ = tpm2.FlushContext(rwc, transient)
-		_ = rwc.Close()
-		return nil, fmt.Errorf("tpmdevice: EvictControl (persist key) failed at 0x%x: %w", handle, err)
+
+		pubB64 := base64.RawStdEncoding.EncodeToString(uncompressed)
+		logf(cfg.Logger, "tpmdevice: created persistent key at 0x%x", handle)
+
+		return &client{
+			rwc:    rwc,
+			handle: handle,
+			pub:    uncompressed,
+			pubB64: pubB64,
+		}, nil
 	}
-
-	// EvictControl succeeded; flush transient and use the persistent handle.
-	_ = tpm2.FlushContext(rwc, transient)
-
-	pubB64 := base64.RawStdEncoding.EncodeToString(uncompressed)
-	logf(cfg.Logger, "tpmdevice: created persistent key at 0x%x", handle)
-
-	return &client{
-		rwc:    rwc,
-		handle: handle,
-		pub:    uncompressed,
-		pubB64: pubB64,
-	}, nil
 }
 
 // createPrimarySigningKey creates a transient ECC signing key and returns
@@ -177,6 +184,7 @@ func createPrimarySigningKey(rwc io.ReadWriter, logger *log.Logger) (tpmutil.Han
 		lastErr = fmt.Errorf("no hierarchy attempted")
 	}
 	return 0, nil, fmt.Errorf("CreatePrimary failed: %w", lastErr)
+
 }
 
 func publicToUncompressed(pub tpm2.Public) ([]byte, error) {
