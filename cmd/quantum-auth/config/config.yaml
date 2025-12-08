@@ -7,6 +7,6 @@ DatabaseSettings:
   User: "quantum_auth_service"
   Password: ""
   Database: "quantum_auth"
-  CertPAth: "/etc/ssl/certs/root.crt"
+  CertPAth: ""
   SSLModeDisable: false
   PoolSize: 5
