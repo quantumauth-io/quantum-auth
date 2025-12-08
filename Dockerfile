@@ -26,7 +26,7 @@ FROM debian:bookworm-slim
 RUN useradd -m -r -u 10001 qa && \
     mkdir -p /app && \
     chown -R qa:qa /app && \
-    chown -R qa:qa /home/qa \
+    chown -R qa:qa /home/qa
 
 WORKDIR /app
 
