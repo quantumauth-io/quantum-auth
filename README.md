@@ -1,6 +1,6 @@
 # QuantumAuth
 ### Military-Grade Post-Quantum Authentication Framework
-![Powered by QuantumAuth](https://img.shields.io/badge/Powered%20By-QuantumAuth-blue?style=for-the-badge&logo=shield)
+![Powered by QuantumAuth](https://img.shields.io/badge/Powered%20By-QuantumAuth-1a1a1a?style=for-the-badge&logo=dependabot)
 
 QuantumAuth is the world's first **fully integrated TPM + Post-Quantum (PQ) signature authentication system**, designed to eliminate passwords, prevent replay attacks, and guarantee identity at the hardware level.
 
@@ -9,7 +9,7 @@ QuantumAuth provides:
 - **TPM-backed hardware signatures**
 - **ML-DSA-65 post-quantum signatures (CIRCL)**
 - **Argon2id quantum-resistant password hashing**
-- **Replay protection via Redis nonce-tracking**
+- **Replay protection via challenges**
 - **Strict canonical request signing**
 - **Zero bearer tokens**
 - **Zero trust, zero reuse, zero impersonation**
@@ -29,7 +29,7 @@ Handles:
 - Challenge generation & verification
 - Secure middleware
 - Replay protection
-- Database (CockroachDB) + Redis
+- Database (CockroachDB) 
 
 ### **2. QuantumAuth Client (Cross-Platform Service)**
 Runs locally on user devices:
@@ -69,8 +69,8 @@ This project is licensed under the **Apache License 2.0** (see `LICENSE`).
 Commercial licenses are available for SaaS companies, cybersecurity firms, and enterprises.  
 See `COMMERCIAL-LICENSE.md` or contact:
 
-**Ian Decentralize**  
-📧 *insert your email here*
+**Ian Dorion**  
+📧 *ian.dorion@quantumauth.io*
 
 ---
 

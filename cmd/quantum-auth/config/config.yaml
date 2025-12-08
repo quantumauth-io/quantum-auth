@@ -10,7 +10,3 @@ DatabaseSettings:
   CertPAth: "/etc/ssl/certs/root.crt"
   SSLModeDisable: true
   PoolSize: 5
-RedisConfig:
-  Host: "localhost"
-  Port: "6379"
-  Password: ""
