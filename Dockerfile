@@ -23,6 +23,11 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
 
 FROM debian:bookworm-slim
 
+# Install CA bundle so TLS works (CockroachDB Cloud, HTTPS, etc.)
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN useradd -m -r -u 10001 qa && \
     mkdir -p /app && \
     chown -R qa:qa /app && \
