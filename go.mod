@@ -3,7 +3,7 @@ module github.com/Madeindreams/quantum-auth
 go 1.25.4
 
 require (
-	github.com/Madeindreams/quantum-go-utils v0.0.4
+	github.com/Madeindreams/quantum-go-utils v0.0.5
 	github.com/cloudflare/circl v1.6.1
 	github.com/gin-gonic/gin v1.11.0
 	github.com/golang-migrate/migrate/v4 v4.19.1
@@ -22,7 +22,6 @@ require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cloudwego/base64x v0.1.6 // indirect
 	github.com/cockroachdb/cockroach-go/v2 v2.4.2 // indirect
-	github.com/cofsa-ca/go-utils v0.0.12 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/elastic/go-sysinfo v1.7.1 // indirect
 	github.com/elastic/go-windows v1.0.0 // indirect

@@ -42,6 +42,7 @@ var fs embed.FS
 
 func NewQuantumAuthService(ctx context.Context, cfg *Config) (*Service, error) {
 	cfg.DatabaseSettings.Password = os.Getenv("DB_PASS")
+	cfg.DatabaseSettings.Host = os.Getenv("DB_HOST")
 
 	d, err := iofs.New(fs, "database/migrations")
 	if err != nil {

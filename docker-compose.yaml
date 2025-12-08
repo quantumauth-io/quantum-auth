@@ -6,9 +6,6 @@ services:
       - "1042:1042"
     environment:
       DB_HOST: cockroachdb
-      DB_PORT: 26257
-      DB_USER: quantum_auth_service
-      DB_NAME: quantum_auth
       DB_PASS: ${DB_PASS}
     env_file:
       - .env
