@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"bytes"
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/sha256"
@@ -13,15 +14,29 @@ import (
 	"strings"
 	"time"
 
-	quantumdb "github.com/Madeindreams/quantum-auth/internal/quantum/database"
-	"github.com/Madeindreams/quantum-auth/pkg/qa/requests"
-	"github.com/Madeindreams/quantum-go-utils/log"
 	"github.com/cloudflare/circl/sign"
 	"github.com/cloudflare/circl/sign/schemes"
 	"github.com/gin-gonic/gin"
+	qdb "github.com/quantumauth-io/quantum-auth/internal/quantum/database"
+	"github.com/quantumauth-io/quantum-auth/pkg/qa/requests"
+	"github.com/quantumauth-io/quantum-go-utils/log"
 )
 
 var pqScheme sign.Scheme
+
+// QuantumAuthRepository is the subset of repo methods used by the HTTP layer.
+type QuantumAuthRepository interface {
+	GetUserByEmail(ctx context.Context, email string) (*qdb.User, error)
+	CreateUser(ctx context.Context, in qdb.CreateUserInput) (string, error)
+
+	GetUserByID(ctx context.Context, id string) (*qdb.User, error)
+
+	GetDeviceByID(ctx context.Context, id string) (*qdb.Device, error)
+	CreateDevice(ctx context.Context, in *qdb.CreateDeviceInput) (string, error)
+
+	CreateChallenge(ctx context.Context, in *qdb.CreateChallengeInput) (string, error)
+	DeleteChallenge(ctx context.Context, id string) error
+}
 
 func init() {
 	pqScheme = schemes.ByName("ML-DSA-65")
@@ -32,7 +47,7 @@ func init() {
 
 // Config for the QuantumAuth middleware.
 type Config struct {
-	Repo     *quantumdb.QuantumAuthRepository
+	Repo     QuantumAuthRepository
 	NonceTTL time.Duration // replay window for nonces; default 5m if zero
 }
 

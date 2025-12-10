@@ -9,14 +9,12 @@ import (
 	"os"
 	"time"
 
-	quantumdb "github.com/Madeindreams/quantum-auth/internal/quantum/database"
-	quantumhttp "github.com/Madeindreams/quantum-auth/internal/quantum/modules/oauth/http"
-	"github.com/gin-gonic/gin"
-
-	"github.com/Madeindreams/quantum-go-utils/database"
-	"github.com/Madeindreams/quantum-go-utils/log"
-	rdb "github.com/Madeindreams/quantum-go-utils/redis"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
+	quantumdb "github.com/quantumauth-io/quantum-auth/internal/quantum/database"
+	quantumhttp "github.com/quantumauth-io/quantum-auth/internal/quantum/http"
+	"github.com/quantumauth-io/quantum-go-utils/database"
+	"github.com/quantumauth-io/quantum-go-utils/log"
+	rdb "github.com/quantumauth-io/quantum-go-utils/redis"
 )
 
 type Service struct {
@@ -55,6 +53,7 @@ func NewQuantumAuthService(ctx context.Context, cfg *Config) (*Service, error) {
 		log.Error("Failed to create database instance", "err", err)
 		return nil, err
 	}
+
 	err = db.MigrateWithIOFS(ctx, d)
 	if err != nil {
 		log.Error("Migrate and Get Database With IOFS Err", "err", err)
@@ -63,17 +62,7 @@ func NewQuantumAuthService(ctx context.Context, cfg *Config) (*Service, error) {
 
 	repo := quantumdb.NewRepository(db)
 
-	gin.SetMode(gin.ReleaseMode)
-
-	r := gin.New()
-	r.Use(gin.Logger())
-	r.Use(gin.Recovery())
-	_ = r.SetTrustedProxies(nil)
-
-	routes := quantumhttp.NewRoutes(ctx, repo)
-	routes.Register(r.Group(ApiBase))
-
-	engine := r
+	engine := quantumhttp.NewRouter(ctx, repo)
 
 	httpSrv := &http.Server{
 		Addr:    net.JoinHostPort(cfg.SwaggerHTTPConfig.Host, cfg.SwaggerHTTPConfig.Port),
@@ -107,4 +96,5 @@ func (s *Service) Shutdown() {
 	if err := s.httpServer.Shutdown(shutdownCtx); err != nil {
 		log.Error("error during shutdown:", "error", err)
 	}
+
 }

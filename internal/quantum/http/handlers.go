@@ -1,4 +1,4 @@
-package quantumhttp
+package http
 
 import (
 	"context"
@@ -9,34 +9,48 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Madeindreams/quantum-auth/internal/quantum/database"
-	"github.com/Madeindreams/quantum-auth/internal/quantum/security"
-	"github.com/Madeindreams/quantum-auth/pkg/qa/requests"
-	"github.com/Madeindreams/quantum-go-utils/log"
 	"github.com/gin-gonic/gin"
+	"github.com/quantumauth-io/quantum-auth/internal/quantum/database"
+	qdb "github.com/quantumauth-io/quantum-auth/internal/quantum/database"
+	"github.com/quantumauth-io/quantum-auth/internal/quantum/security"
+	"github.com/quantumauth-io/quantum-auth/pkg/qa/requests"
+	"github.com/quantumauth-io/quantum-go-utils/log"
 )
 
+// QuantumAuthRepository is the subset of repo methods used by the HTTP layer.
+type QuantumAuthRepository interface {
+	GetUserByEmail(ctx context.Context, email string) (*qdb.User, error)
+	CreateUser(ctx context.Context, in qdb.CreateUserInput) (string, error)
+
+	GetUserByID(ctx context.Context, id string) (*qdb.User, error)
+
+	GetDeviceByID(ctx context.Context, id string) (*qdb.Device, error)
+	CreateDevice(ctx context.Context, in *qdb.CreateDeviceInput) (string, error)
+
+	CreateChallenge(ctx context.Context, in *qdb.CreateChallengeInput) (string, error)
+	DeleteChallenge(ctx context.Context, id string) error
+}
 type Handler struct {
 	ctx  context.Context
-	repo *database.QuantumAuthRepository
+	repo QuantumAuthRepository
 }
 
-func NewHandler(ctx context.Context, repo *database.QuantumAuthRepository) *Handler {
+func NewHandler(ctx context.Context, repo QuantumAuthRepository) *Handler {
 	return &Handler{
 		ctx:  ctx,
 		repo: repo,
 	}
 }
 
-func NewChallenge(deviceID string, ttl time.Duration) *database.CreateChallengeInput {
-	return &database.CreateChallengeInput{
+func NewChallenge(deviceID string, ttl time.Duration) *qdb.CreateChallengeInput {
+	return &qdb.CreateChallengeInput{
 		DeviceID:  deviceID,
 		ExpiresAt: time.Now().Add(ttl),
 	}
 }
 
-func NewDevice(userID, deviceLabel string, tpmPublicKey, pqPublicKey string) *database.CreateDeviceInput {
-	return &database.CreateDeviceInput{
+func NewDevice(userID, deviceLabel string, tpmPublicKey, pqPublicKey string) *qdb.CreateDeviceInput {
+	return &qdb.CreateDeviceInput{
 		UserID:       userID,
 		DeviceLabel:  deviceLabel,
 		TPMPublicKey: tpmPublicKey,

@@ -1,4 +1,4 @@
-package quantumhttp
+package http
 
 import (
 	"encoding/json"

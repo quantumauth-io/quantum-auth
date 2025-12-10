@@ -1,9 +1,9 @@
-module github.com/Madeindreams/quantum-auth
+module github.com/quantumauth-io/quantum-auth
 
 go 1.25.4
 
 require (
-	github.com/Madeindreams/quantum-go-utils v0.0.5
+    github.com/quantumauth-io/quantum-go-utils v0.0.7
 	github.com/cloudflare/circl v1.6.1
 	github.com/gin-gonic/gin v1.11.0
 	github.com/golang-migrate/migrate/v4 v4.19.1

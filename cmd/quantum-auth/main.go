@@ -7,8 +7,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/Madeindreams/quantum-auth/internal/quantum"
-	"github.com/Madeindreams/quantum-go-utils/config"
+	"github.com/quantumauth-io/quantum-auth/internal/quantum"
+	"github.com/quantumauth-io/quantum-go-utils/config"
 )
 
 // @title           Quantum Auth API

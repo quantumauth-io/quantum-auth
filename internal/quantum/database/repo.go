@@ -1,7 +1,7 @@
 package database
 
 import (
-	"github.com/Madeindreams/quantum-go-utils/database"
+	"github.com/quantumauth-io/quantum-go-utils/database"
 )
 
 type Repo interface {

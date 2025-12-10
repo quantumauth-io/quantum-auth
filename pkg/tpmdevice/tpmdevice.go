@@ -139,52 +139,36 @@ func createPrimarySigningKey(rwc io.ReadWriter, logger *log.Logger) (tpmutil.Han
 		},
 	}
 
-	hierarchies := []tpmutil.Handle{
-		tpm2.HandleOwner,
-		tpm2.HandleEndorsement,
-		tpm2.HandlePlatform,
-		tpm2.HandleNull,
+	const hierarchy = tpm2.HandleOwner
+
+	handle, _, err := tpm2.CreatePrimary(
+		rwc,
+		hierarchy,
+		tpm2.PCRSelection{},
+		"", // parentPassword
+		"", // ownerPassword
+		template,
+	)
+	if err != nil {
+		logf(logger, "tpmdevice: CreatePrimary failed in 0x%x: %v", hierarchy, err)
+		return 0, nil, fmt.Errorf("CreatePrimary failed: %w", err)
 	}
 
-	var lastErr error
+	logf(logger, "tpmdevice: CreatePrimary OK in 0x%x (handle 0x%x)", hierarchy, handle)
 
-	for _, h := range hierarchies {
-		handle, _, err := tpm2.CreatePrimary(
-			rwc,
-			h,
-			tpm2.PCRSelection{},
-			"", // parentPassword
-			"", // ownerPassword
-			template,
-		)
-		if err != nil {
-			logf(logger, "tpmdevice: CreatePrimary failed in 0x%x: %v", h, err)
-			lastErr = err
-			continue
-		}
-
-		logf(logger, "tpmdevice: CreatePrimary OK in 0x%x (handle 0x%x)", h, handle)
-
-		pub, _, _, err := tpm2.ReadPublic(rwc, handle)
-		if err != nil {
-			_ = tpm2.FlushContext(rwc, handle)
-			return 0, nil, fmt.Errorf("ReadPublic: %w", err)
-		}
-
-		uncompressed, err := publicToUncompressed(pub)
-		if err != nil {
-			_ = tpm2.FlushContext(rwc, handle)
-			return 0, nil, err
-		}
-
-		return handle, uncompressed, nil
+	pub, _, _, err := tpm2.ReadPublic(rwc, handle)
+	if err != nil {
+		_ = tpm2.FlushContext(rwc, handle)
+		return 0, nil, fmt.Errorf("ReadPublic: %w", err)
 	}
 
-	if lastErr == nil {
-		lastErr = fmt.Errorf("no hierarchy attempted")
+	uncompressed, err := publicToUncompressed(pub)
+	if err != nil {
+		_ = tpm2.FlushContext(rwc, handle)
+		return 0, nil, err
 	}
-	return 0, nil, fmt.Errorf("CreatePrimary failed: %w", lastErr)
 
+	return handle, uncompressed, nil
 }
 
 func publicToUncompressed(pub tpm2.Public) ([]byte, error) {

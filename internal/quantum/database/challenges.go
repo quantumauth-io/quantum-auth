@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/Madeindreams/quantum-go-utils/log"
+	"github.com/quantumauth-io/quantum-go-utils/log"
 )
 
 // Challenge represents a challenge issued for authentication.
