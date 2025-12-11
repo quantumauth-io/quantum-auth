@@ -49,7 +49,7 @@ func NewQuantumAuthService(ctx context.Context, cfg *Config) (*Service, error) {
 		return nil, err
 	}
 
-	db, err := database.NewCockroachSQLDatabase(ctx, cfg.DatabaseSettings)
+	db, err := database.NewCockroachPGXDatabase(ctx, cfg.DatabaseSettings)
 	if err != nil {
 		log.Error("Failed to create database instance", "err", err)
 		return nil, err
