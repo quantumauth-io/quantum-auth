@@ -9,6 +9,8 @@ import (
 	"io"
 	"log"
 	"runtime"
+	"strings"
+	"time"
 
 	tpm2 "github.com/google/go-tpm/legacy/tpm2"
 	"github.com/google/go-tpm/tpmutil"
@@ -45,6 +47,24 @@ func logf(logger *log.Logger, format string, args ...interface{}) {
 	}
 }
 
+func isHierarchyUnavailable(err error) bool {
+	if err == nil {
+		return false
+	}
+	if e, ok := err.(tpm2.Error); ok {
+		// Your logs show "error code 0x5 : hierarchy is not enabled or is not correct for the use"
+		if e.Code == 0x5 {
+			return true
+		}
+	}
+	msg := err.Error()
+	if strings.Contains(msg, "hierarchy is not enabled") ||
+		strings.Contains(msg, "hierarchy is not correct for the use") {
+		return true
+	}
+	return false
+}
+
 func NewWithConfig(ctx context.Context, cfg Config) (Client, error) {
 	switch runtime.GOOS {
 	case "darwin":
@@ -63,6 +83,7 @@ func NewWithConfig(ctx context.Context, cfg Config) (Client, error) {
 
 		// If ForceNew, remove any existing persistent object at this handle.
 		if cfg.ForceNew {
+			// Ignore errors here – if it's already gone, that's fine.
 			_ = tpm2.EvictControl(rwc, cfg.OwnerAuth, tpm2.HandleOwner, handle, handle)
 		}
 
@@ -84,10 +105,12 @@ func NewWithConfig(ctx context.Context, cfg Config) (Client, error) {
 					pubB64: pubB64,
 				}, nil
 			}
+			// This is where you saw:
+			// "no existing key at 0x81000001: handle 1, error code 0xb : the handle is not correct for the use"
 			logf(cfg.Logger, "tpmdevice: no existing key at 0x%x: %v", handle, err)
 		}
 
-		// Create a new primary signing key under some hierarchy.
+		// Create a new primary signing key under owner hierarchy with retry
 		transient, uncompressed, err := createPrimarySigningKey(rwc, cfg.Logger)
 		if err != nil {
 			_ = rwc.Close()
@@ -124,7 +147,8 @@ func NewWithConfig(ctx context.Context, cfg Config) (Client, error) {
 }
 
 // createPrimarySigningKey creates a transient ECC signing key and returns
-// its handle + uncompressed public key.
+// its handle + uncompressed public key. It retries when the owner hierarchy
+// is temporarily unavailable (typical right after resume from sleep).
 func createPrimarySigningKey(rwc io.ReadWriter, logger *log.Logger) (tpmutil.Handle, []byte, error) {
 	template := tpm2.Public{
 		Type:    tpm2.AlgECC,
@@ -140,35 +164,52 @@ func createPrimarySigningKey(rwc io.ReadWriter, logger *log.Logger) (tpmutil.Han
 	}
 
 	const hierarchy = tpm2.HandleOwner
+	const maxAttempts = 10
 
-	handle, _, err := tpm2.CreatePrimary(
-		rwc,
-		hierarchy,
-		tpm2.PCRSelection{},
-		"", // parentPassword
-		"", // ownerPassword
-		template,
-	)
-	if err != nil {
-		logf(logger, "tpmdevice: CreatePrimary failed in 0x%x: %v", hierarchy, err)
-		return 0, nil, fmt.Errorf("CreatePrimary failed: %w", err)
+	var lastErr error
+
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		handle, _, err := tpm2.CreatePrimary(
+			rwc,
+			hierarchy,
+			tpm2.PCRSelection{},
+			"", // parentPassword
+			"", // ownerPassword
+			template,
+		)
+		if err != nil {
+			lastErr = err
+			if !isHierarchyUnavailable(err) || attempt == maxAttempts {
+				logf(logger, "tpmdevice: CreatePrimary failed in 0x%x after %d attempts: %v", hierarchy, attempt, err)
+				return 0, nil, fmt.Errorf("CreatePrimary failed: %w", err)
+			}
+
+			// Hierarchy temporarily unavailable – backoff and retry.
+			delay := time.Duration(attempt) * 200 * time.Millisecond
+			logf(logger, "tpmdevice: CreatePrimary hierarchy not ready, retrying in %s (%d/%d)...",
+				delay, attempt, maxAttempts)
+			time.Sleep(delay)
+			continue
+		}
+
+		logf(logger, "tpmdevice: CreatePrimary OK in 0x%x (handle 0x%x)", hierarchy, handle)
+
+		pub, _, _, err := tpm2.ReadPublic(rwc, handle)
+		if err != nil {
+			_ = tpm2.FlushContext(rwc, handle)
+			return 0, nil, fmt.Errorf("ReadPublic: %w", err)
+		}
+
+		uncompressed, err := publicToUncompressed(pub)
+		if err != nil {
+			_ = tpm2.FlushContext(rwc, handle)
+			return 0, nil, err
+		}
+
+		return handle, uncompressed, nil
 	}
 
-	logf(logger, "tpmdevice: CreatePrimary OK in 0x%x (handle 0x%x)", hierarchy, handle)
-
-	pub, _, _, err := tpm2.ReadPublic(rwc, handle)
-	if err != nil {
-		_ = tpm2.FlushContext(rwc, handle)
-		return 0, nil, fmt.Errorf("ReadPublic: %w", err)
-	}
-
-	uncompressed, err := publicToUncompressed(pub)
-	if err != nil {
-		_ = tpm2.FlushContext(rwc, handle)
-		return 0, nil, err
-	}
-
-	return handle, uncompressed, nil
+	return 0, nil, fmt.Errorf("CreatePrimary failed: %w", lastErr)
 }
 
 func publicToUncompressed(pub tpm2.Public) ([]byte, error) {
