@@ -77,7 +77,7 @@ func NewQuantumAuthService(ctx context.Context, cfg *Config) (*Service, error) {
 }
 
 func (s *Service) Run(ctx context.Context) {
-	log.Info("quantum service starting on x", "address", s.httpServer.Addr)
+	log.Info("quantum service starting on xxxx", "address", s.httpServer.Addr)
 
 	go func() {
 		if err := s.httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
