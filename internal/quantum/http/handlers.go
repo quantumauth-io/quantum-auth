@@ -31,13 +31,11 @@ type QuantumAuthRepository interface {
 	DeleteChallenge(ctx context.Context, id string) error
 }
 type Handler struct {
-	ctx  context.Context
 	repo QuantumAuthRepository
 }
 
-func NewHandler(ctx context.Context, repo QuantumAuthRepository) *Handler {
+func NewHandler(repo QuantumAuthRepository) *Handler {
 	return &Handler{
-		ctx:  ctx,
 		repo: repo,
 	}
 }
@@ -118,6 +116,7 @@ func (h *Handler) RegisterUser(c *gin.Context) {
 // @Failure      404      {string} string "device not found"
 // @Router       /auth/challenge [post]
 func (h *Handler) AuthChallenge(c *gin.Context) {
+	ctx := c.Request.Context()
 	var req authChallengeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -129,7 +128,7 @@ func (h *Handler) AuthChallenge(c *gin.Context) {
 		return
 	}
 
-	d, err := h.repo.GetDeviceByID(h.ctx, req.DeviceID)
+	d, err := h.repo.GetDeviceByID(ctx, req.DeviceID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 	}
@@ -140,7 +139,7 @@ func (h *Handler) AuthChallenge(c *gin.Context) {
 
 	// 2-minute TTL for now
 	ch := NewChallenge(d.ID, 2*time.Minute)
-	challengeId, err := h.repo.CreateChallenge(h.ctx, ch)
+	challengeId, err := h.repo.CreateChallenge(ctx, ch)
 
 	resp := authChallengeResponse{
 		ChallengeID: challengeId,
@@ -167,6 +166,7 @@ func (h *Handler) AuthChallenge(c *gin.Context) {
 // @Failure      404      {string}  string "user or device not found"
 // @Router       /auth/verify [post]
 func (h *Handler) AuthVerify(c *gin.Context) {
+	ctx := c.Request.Context()
 	var req authVerifyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -261,7 +261,7 @@ func (h *Handler) AuthVerify(c *gin.Context) {
 	}
 
 	// 3) Look up device + user
-	d, err := h.repo.GetDeviceByID(h.ctx, deviceID)
+	d, err := h.repo.GetDeviceByID(ctx, deviceID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -275,7 +275,7 @@ func (h *Handler) AuthVerify(c *gin.Context) {
 		return
 	}
 
-	user, err := h.repo.GetUserByID(h.ctx, userID)
+	user, err := h.repo.GetUserByID(ctx, userID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -285,7 +285,7 @@ func (h *Handler) AuthVerify(c *gin.Context) {
 		return
 	}
 
-	err = h.repo.DeleteChallenge(h.ctx, challengeID)
+	err = h.repo.DeleteChallenge(ctx, challengeID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 	}
@@ -367,6 +367,7 @@ func parseQuantumAuthHeader(auth string) (map[string]string, error) {
 // @Failure      404      {string}  string  "user not found"
 // @Router       /devices/register [post]
 func (h *Handler) RegisterDevice(c *gin.Context) {
+	ctx := c.Request.Context()
 	var req registerDeviceRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -379,7 +380,7 @@ func (h *Handler) RegisterDevice(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "user_id, device_label, tpm_public_key and pq_public_key are required"})
 		return
 	}
-	u, err := h.repo.GetUserByID(h.ctx, req.UserId)
+	u, err := h.repo.GetUserByID(ctx, req.UserId)
 	if err != nil {
 		log.Error("GetUserByEmail", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -392,7 +393,7 @@ func (h *Handler) RegisterDevice(c *gin.Context) {
 	}
 
 	d := NewDevice(u.ID, req.DeviceLabel, req.TPMPublicKey, req.PQPublicKey)
-	deviceId, err := h.repo.CreateDevice(h.ctx, d)
+	deviceId, err := h.repo.CreateDevice(ctx, d)
 	if err != nil {
 		log.Error("failed to create device", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -439,6 +440,7 @@ func (h *Handler) SecurePing(c *gin.Context) {
 // @Failure      404      {string}  string  "user or device not found"
 // @Router       /auth/full-login [post]
 func (h *Handler) FullLogin(c *gin.Context) {
+	ctx := c.Request.Context()
 	var req fullLoginRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -457,7 +459,7 @@ func (h *Handler) FullLogin(c *gin.Context) {
 	}
 
 	// 1) Load device
-	d, err := h.repo.GetDeviceByID(h.ctx, req.DeviceID)
+	d, err := h.repo.GetDeviceByID(ctx, req.DeviceID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -472,7 +474,7 @@ func (h *Handler) FullLogin(c *gin.Context) {
 	}
 
 	// 2) Load user
-	user, err := h.repo.GetUserByID(h.ctx, req.UserID)
+	user, err := h.repo.GetUserByID(ctx, req.UserID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

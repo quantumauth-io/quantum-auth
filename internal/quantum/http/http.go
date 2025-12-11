@@ -20,7 +20,7 @@ type Routes struct {
 // NewRoutes builds your main API route registrar
 func NewRoutes(ctx context.Context, repo QuantumAuthRepository) *Routes {
 	return &Routes{
-		h:    NewHandler(ctx, repo), // ← your handler constructor
+		h:    NewHandler(repo), // ← your handler constructor
 		repo: repo,
 	}
 }
