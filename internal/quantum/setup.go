@@ -41,6 +41,7 @@ var fs embed.FS
 func NewQuantumAuthService(ctx context.Context, cfg *Config) (*Service, error) {
 	cfg.DatabaseSettings.Password = os.Getenv("DB_PASS")
 	cfg.DatabaseSettings.Host = os.Getenv("DB_HOST")
+	port := os.Getenv("PORT")
 
 	d, err := iofs.New(fs, "database/migrations")
 	if err != nil {
@@ -65,7 +66,7 @@ func NewQuantumAuthService(ctx context.Context, cfg *Config) (*Service, error) {
 	engine := quantumhttp.NewRouter(ctx, repo)
 
 	httpSrv := &http.Server{
-		Addr:    net.JoinHostPort(cfg.SwaggerHTTPConfig.Host, cfg.SwaggerHTTPConfig.Port),
+		Addr:    net.JoinHostPort(cfg.SwaggerHTTPConfig.Host, port),
 		Handler: engine,
 	}
 

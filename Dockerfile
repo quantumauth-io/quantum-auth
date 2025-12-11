@@ -39,7 +39,7 @@ COPY --from=builder /app/qa-server /app/qa-server
 COPY --from=builder /app/internal/quantum/database/migrations /app/migrations
 COPY --from=builder /app/cmd/quantum-auth/config /app/cmd/quantum-auth/config
 
-EXPOSE 1042
+EXPOSE 6137
 
 USER qa
 ENV HOME=/home/qa

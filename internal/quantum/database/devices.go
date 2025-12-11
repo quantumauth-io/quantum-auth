@@ -2,6 +2,7 @@ package database
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/quantumauth-io/quantum-go-utils/log"
@@ -64,7 +65,8 @@ func (r *QuantumAuthRepository) GetDeviceByID(ctx context.Context, deviceID stri
 	var d Device
 	resultRow, err := r.db.QueryRow(ctx, query, deviceID)
 	if err != nil {
-		log.Error("Error getting device", "error", err)
+		log.Error("db error", "type", fmt.Sprintf("%T", err), "err", fmt.Sprintf("%+v", err))
+		log.Error("Error getting device", "error", err, "device_id", deviceID)
 		return nil, err
 	}
 

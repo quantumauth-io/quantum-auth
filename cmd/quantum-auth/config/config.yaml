@@ -1,5 +1,5 @@
 SwaggerHTTPConfig:
-  Port: "1042"
+  Port: "80"
   Host: "0.0.0.0"
 DatabaseSettings:
   Host: "localhost"
