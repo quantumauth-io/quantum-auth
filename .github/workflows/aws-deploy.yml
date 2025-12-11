@@ -50,23 +50,26 @@ jobs:
 
       - name: Render new task definition and register revision
         run: |
-          # Fetch current task definition (only allowed fields)
+          # 1) Fetch current task definition (only allowed fields, no taskRoleArn)
           aws ecs describe-task-definition \
             --task-definition "$ECS_TASK_FAMILY" \
-            --query 'taskDefinition.{family:family, taskRoleArn:taskRoleArn, executionRoleArn:executionRoleArn, networkMode:networkMode, containerDefinitions:containerDefinitions, volumes:volumes, placementConstraints:placementConstraints, requiresCompatibilities:requiresCompatibilities, cpu:cpu, memory:memory}' \
+            --query 'taskDefinition.{family:family,executionRoleArn:executionRoleArn,networkMode:networkMode,containerDefinitions:containerDefinitions,volumes:volumes,placementConstraints:placementConstraints,requiresCompatibilities:requiresCompatibilities,cpu:cpu,memory:memory}' \
             > task-def.json
-
-          # Replace container image for the main container
+            
+          # 2) Replace container image for our container
           jq --arg IMAGE "$IMAGE_URI" --arg NAME "$CONTAINER_NAME" \
             '.containerDefinitions |= map(if .name == $NAME then .image=$IMAGE else . end)' \
             task-def.json > task-def-updated.json
-
-          # Register new task definition revision
+            
+          # 3) Remove any remaining null fields (extra safety)
+          jq 'del(.. | select(. == null))' task-def-updated.json > task-def-final.json
+            
+          # 4) Register new task definition revision
           TASK_DEF_ARN=$(aws ecs register-task-definition \
-            --cli-input-json file://task-def-updated.json \
+            --cli-input-json file://task-def-final.json \
             --query 'taskDefinition.taskDefinitionArn' \
             --output text)
-
+            
           echo "TASK_DEF_ARN=$TASK_DEF_ARN" >> $GITHUB_ENV
 
       - name: Update ECS service
