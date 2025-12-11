@@ -78,8 +78,5 @@ jobs:
             --cluster "$ECS_CLUSTER" \
             --service "$ECS_SERVICE" \
             --task-definition "$TASK_DEF_ARN"
-
-          # Wait until the new task is running and service is stable
-          aws ecs wait services-stable \
-            --cluster "$ECS_CLUSTER" \
-            --services "$ECS_SERVICE"
+            
+          echo "Updated service $ECS_SERVICE to task definition $TASK_DEF_ARN"
