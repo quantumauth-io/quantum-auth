@@ -1,8 +1,8 @@
 SwaggerHTTPConfig:
-  Port: "80"
+  Port: "1042"
   Host: "0.0.0.0"
 DatabaseSettings:
-  Host: "localhost"
+  Host: "quantum-auth-10762.jxf.cockroachlabs.cloud"
   Port: "26257"
   User: "quantum_auth_service"
   Password: ""
