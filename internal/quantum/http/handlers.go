@@ -130,8 +130,6 @@ func (h *Handler) AuthChallenge(c *gin.Context) {
 		return
 	}
 
-	log.Info("Getting device id for auth challenge", "device_id", req.DeviceID)
-
 	d, err := h.repo.GetDeviceByID(ctx, req.DeviceID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -149,9 +147,6 @@ func (h *Handler) AuthChallenge(c *gin.Context) {
 		ChallengeID: challengeId,
 		ExpiresAt:   ch.ExpiresAt,
 	}
-
-	jsonBody, _ := json.Marshal(resp)
-	log.Info("challenge response", "json", string(jsonBody))
 
 	c.JSON(http.StatusCreated, resp)
 }
@@ -196,7 +191,7 @@ func (h *Handler) AuthVerify(c *gin.Context) {
 			break
 		}
 	}
-	log.Info("auth header", "authHeader", authHeader)
+
 	if authHeader == "" {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing Authorization header"})
 		return
@@ -242,15 +237,9 @@ func (h *Handler) AuthVerify(c *gin.Context) {
 		return
 	}
 
-	// now you have:
 	userID := parsed.UserID
 	deviceID := parsed.DeviceID
 	challengeID = parsed.ChallengeID
-	ts := parsed.TS
-	_ = parsed.BodySHA256 // unused for now
-
-	// (optional) debug: log canonical
-	log.Info("canonical", "value", string(msgBytes), "ts", ts, "challenge", challengeID)
 
 	// 2) Get Host header (needed for canonical string)
 	host := ""
@@ -294,21 +283,8 @@ func (h *Handler) AuthVerify(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 	}
 
-	// 4) Rebuild canonical string exactly like qa.Client.SignRequest
-	//canonical := qareq.CanonicalString(qareq.CanonicalInput{
-	//	Method:   req.Method,
-	//	Path:     req.Path,
-	//	Host:     host,
-	//	TS:       tsInt,
-	//	Nonce:    nonceInt,
-	//	UserID:   userID,
-	//	DeviceID: deviceID,
-	//	Body:     nil, // we used nil in SignRequest for this flow
-	//})
-
 	// 5) Verify TPM signature
 	okTPM := security.VerifyTPMSignature(d.TPMPublicKey, msgBytes, sigTPM)
-	log.Info("verify TPM", "ok", okTPM)
 	if !okTPM {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized (TPM)"})
 		return
@@ -316,7 +292,6 @@ func (h *Handler) AuthVerify(c *gin.Context) {
 
 	// 6) Verify PQ signature
 	okPQ := security.VerifyPQSignature(d.PQPublicKey, msgBytes, sigPQ)
-	log.Info("verify PQ", "ok", okPQ)
 	if !okPQ {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized (PQ)"})
 		return
@@ -378,8 +353,6 @@ func (h *Handler) RegisterDevice(c *gin.Context) {
 		return
 	}
 
-	log.Info("request", "device", req)
-
 	if req.UserId == "" || req.DeviceLabel == "" || req.TPMPublicKey == "" || req.PQPublicKey == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "user_id, device_label, tpm_public_key and pq_public_key are required"})
 		return
@@ -404,7 +377,6 @@ func (h *Handler) RegisterDevice(c *gin.Context) {
 	}
 
 	_ = registerDeviceResponse{DeviceID: deviceId}
-	log.Info("response", "device", deviceId)
 	c.JSON(http.StatusCreated, gin.H{"device_id": deviceId})
 }
 
@@ -452,8 +424,6 @@ func (h *Handler) FullLogin(c *gin.Context) {
 		return
 	}
 
-	log.Info("full login", "req", req)
-
 	if req.UserID == "" || req.DeviceID == "" || req.Password == "" ||
 		req.MessageB64 == "" || req.TPMSignature == "" || req.PQSignature == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -490,11 +460,6 @@ func (h *Handler) FullLogin(c *gin.Context) {
 
 	// 3) Verify password
 	ok, err := security.VerifyPassword(user.PasswordHash, req.Password)
-	log.Info("full login: verify password",
-		"user_id", user.ID,
-		"ok", ok,
-		"err", err,
-	)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -528,24 +493,13 @@ func (h *Handler) FullLogin(c *gin.Context) {
 		return
 	}
 
-	// Optional: freshness check
-	// if time.Since(time.Unix(msg.TS, 0)) > 5*time.Minute {
-	// 	c.JSON(http.StatusBadRequest, gin.H{"error": "login message too old"})
-	// 	return
-	// }
-
-	log.Info("full login: msg",
-		"user_id", msg.UserID,
-		"device_id", msg.DeviceID,
-		"purpose", msg.Purpose,
-	)
+	if time.Since(time.Unix(msg.TS, 0)) > 5*time.Minute {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "login message too old"})
+		return
+	}
 
 	// 5) Verify TPM signature
-
-	log.Info("server TPM pub", "pub", d.TPMPublicKey)
-
 	okTPM := security.VerifyTPMSignature(d.TPMPublicKey, msgBytes, req.TPMSignature)
-	log.Info("full login: verify TPM", "ok", okTPM)
 	if !okTPM {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
@@ -553,7 +507,6 @@ func (h *Handler) FullLogin(c *gin.Context) {
 
 	// 6) Verify PQ signature
 	okPQ := security.VerifyPQSignature(d.PQPublicKey, msgBytes, req.PQSignature)
-	log.Info("full login: verify PQ", "ok", okPQ)
 	if !okPQ {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return

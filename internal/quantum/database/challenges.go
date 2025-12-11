@@ -81,7 +81,6 @@ func (r *QuantumAuthRepository) GetChallenge(ctx context.Context, challengeID st
 // DeleteChallenge removes a challenge once it has been consumed.
 func (r *QuantumAuthRepository) DeleteChallenge(ctx context.Context, challengeID string) error {
 
-	log.Info("deleting challenge", "challenge_id", challengeID)
 	const query = `
 		DELETE FROM auth_challenges
 		WHERE challenge_id = $1;

@@ -52,8 +52,6 @@ func (r *QuantumAuthRepository) CreateUser(ctx context.Context, in CreateUserInp
 		return "", err
 	}
 
-	log.Info("User created", "id", id)
-
 	return id, nil
 }
 

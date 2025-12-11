@@ -19,7 +19,6 @@ import (
 	"github.com/gin-gonic/gin"
 	qdb "github.com/quantumauth-io/quantum-auth/internal/quantum/database"
 	"github.com/quantumauth-io/quantum-auth/pkg/qa/requests"
-	"github.com/quantumauth-io/quantum-go-utils/log"
 )
 
 var pqScheme sign.Scheme
@@ -103,9 +102,6 @@ func QuantumAuthMiddleware(cfg Config) gin.HandlerFunc {
 		challengeID = parsed.ChallengeID
 		ts := parsed.TS
 		_ = parsed.BodySHA256 // unused for now
-
-		// (optional) debug: log canonical
-		log.Info("canonical", "value", string(msgBytes), "ts", ts, "challenge", challengeID)
 
 		now := time.Now().Unix()
 		if math.Abs(float64(now-ts)) > 30 {

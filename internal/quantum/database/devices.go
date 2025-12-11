@@ -32,8 +32,7 @@ func (r *QuantumAuthRepository) CreateDevice(ctx context.Context, in *CreateDevi
 		VALUES ($1, $2, $3, $4)
 		RETURNING device_id;
 	`
-	log.Info("device", "userid", in.UserID)
-	log.Info("device", "label", in.DeviceLabel)
+
 	var id string
 	resultRow, err := r.db.QueryRow(ctx, query,
 		in.UserID,
