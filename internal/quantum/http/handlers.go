@@ -130,6 +130,8 @@ func (h *Handler) AuthChallenge(c *gin.Context) {
 		return
 	}
 
+	log.Info("Getting device id for auth challenge", "device_id", req.DeviceID)
+
 	d, err := h.repo.GetDeviceByID(ctx, req.DeviceID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
