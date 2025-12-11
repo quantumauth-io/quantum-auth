@@ -31,11 +31,13 @@ type QuantumAuthRepository interface {
 	DeleteChallenge(ctx context.Context, id string) error
 }
 type Handler struct {
+	ctx  context.Context
 	repo QuantumAuthRepository
 }
 
-func NewHandler(repo QuantumAuthRepository) *Handler {
+func NewHandler(ctx context.Context, repo QuantumAuthRepository) *Handler {
 	return &Handler{
+		ctx:  ctx,
 		repo: repo,
 	}
 }
