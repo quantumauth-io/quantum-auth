@@ -5,10 +5,13 @@ import (
 	"crypto/ecdsa"
 	"crypto/sha256"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"log"
+	"os"
 	"runtime"
+	"strings"
 
 	tpm2 "github.com/google/go-tpm/legacy/tpm2"
 	"github.com/google/go-tpm/tpmutil"
@@ -232,13 +235,24 @@ func (c *client) SignB64(msg []byte) (string, error) {
 }
 
 func (c *client) Close() error {
-	if c == nil {
+	if c == nil || c.rwc == nil {
 		return nil
 	}
-	if c.rwc != nil {
-		if err := c.rwc.Close(); err != nil {
-			return fmt.Errorf("tpmdevice: close: %w", err)
-		}
+
+	err := c.rwc.Close()
+	c.rwc = nil // make Close idempotent
+
+	if err == nil {
+		return nil
 	}
-	return nil
+
+	// Ignore harmless double-close cases
+	if errors.Is(err, os.ErrClosed) {
+		return nil
+	}
+	if strings.Contains(err.Error(), "file already closed") {
+		return nil
+	}
+
+	return fmt.Errorf("tpmdevice: close: %w", err)
 }
