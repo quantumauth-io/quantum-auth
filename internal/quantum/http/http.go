@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	_ "github.com/quantumauth-io/quantum-auth/docs"
+	"github.com/quantumauth-io/quantum-auth/internal/quantum/email"
 	qamw "github.com/quantumauth-io/quantum-auth/internal/quantum/transport/http/middleware"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
@@ -18,15 +19,15 @@ type Routes struct {
 }
 
 // NewRoutes builds your main API route registrar
-func NewRoutes(ctx context.Context, repo QuantumAuthRepository) *Routes {
+func NewRoutes(ctx context.Context, repo QuantumAuthRepository, emailSender *email.SMTPSender) *Routes {
 	return &Routes{
-		h:    NewHandler(ctx, repo),
+		h:    NewHandler(ctx, repo, emailSender),
 		repo: repo,
 	}
 }
 
 // NewRouter creates the Gin engine + registers ALL routes
-func NewRouter(ctx context.Context, repo QuantumAuthRepository) *gin.Engine {
+func NewRouter(ctx context.Context, repo QuantumAuthRepository, emailSender *email.SMTPSender) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 
 	r := gin.New()
@@ -37,7 +38,7 @@ func NewRouter(ctx context.Context, repo QuantumAuthRepository) *gin.Engine {
 	api := r.Group(ApiBase)
 
 	// ---- MAIN QuantumAuth API ----
-	mainRoutes := NewRoutes(ctx, repo)
+	mainRoutes := NewRoutes(ctx, repo, emailSender)
 	mainRoutes.Register(api)
 
 	return r

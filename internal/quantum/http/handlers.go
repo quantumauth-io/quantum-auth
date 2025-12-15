@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/quantumauth-io/quantum-auth/internal/quantum/database"
 	qdb "github.com/quantumauth-io/quantum-auth/internal/quantum/database"
+	"github.com/quantumauth-io/quantum-auth/internal/quantum/email"
 	"github.com/quantumauth-io/quantum-auth/internal/quantum/security"
 	"github.com/quantumauth-io/quantum-go-utils/log"
 	"github.com/quantumauth-io/quantum-go-utils/qa/requests"
@@ -31,14 +32,16 @@ type QuantumAuthRepository interface {
 	DeleteChallenge(ctx context.Context, id string) error
 }
 type Handler struct {
-	ctx  context.Context
-	repo QuantumAuthRepository
+	ctx         context.Context
+	repo        QuantumAuthRepository
+	emailSender *email.SMTPSender
 }
 
-func NewHandler(ctx context.Context, repo QuantumAuthRepository) *Handler {
+func NewHandler(ctx context.Context, repo QuantumAuthRepository, emailSender *email.SMTPSender) *Handler {
 	return &Handler{
-		ctx:  ctx,
-		repo: repo,
+		ctx:         ctx,
+		repo:        repo,
+		emailSender: emailSender,
 	}
 }
 
@@ -100,6 +103,21 @@ func (h *Handler) RegisterUser(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "create user failed"})
 		return
+	}
+
+	docsURL := "https://docs.quantumauth.io" // or config/env
+
+	err = h.emailSender.Send(c, email.Message{
+		FromName: "QuantumAuth",
+		FromAddr: "noreply@quantumauth.io",
+		To:       req.Email,
+		Subject:  "Welcome to QuantumAuth",
+		TextBody: email.WelcomeEmailText(req.Username, docsURL),
+		HTMLBody: email.WelcomeEmailHTML(req.Username, docsURL),
+	})
+
+	if err != nil {
+		log.Error("Failed to send email to quantum auth", "error", err)
 	}
 
 	c.JSON(http.StatusCreated, gin.H{"user_id": id})

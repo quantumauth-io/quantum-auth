@@ -10,3 +10,11 @@ DatabaseSettings:
   CertPAth: "/etc/ssl/certs/ca-certificates.crt"
   SSLModeDisable: false
   PoolSize: 5
+SMTPConfig:
+  Host: "smtp.protonmail.ch"
+  Port: "587"
+  Username: ""
+  Password: ""
+  Timeout: 30
+  UseTLS: false
+  StartTLS: true

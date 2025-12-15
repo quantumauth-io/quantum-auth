@@ -11,6 +11,7 @@ import (
 
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 	quantumdb "github.com/quantumauth-io/quantum-auth/internal/quantum/database"
+	"github.com/quantumauth-io/quantum-auth/internal/quantum/email"
 	quantumhttp "github.com/quantumauth-io/quantum-auth/internal/quantum/http"
 	"github.com/quantumauth-io/quantum-go-utils/database"
 	"github.com/quantumauth-io/quantum-go-utils/log"
@@ -18,8 +19,9 @@ import (
 )
 
 type Service struct {
-	repo       *quantumdb.QuantumAuthRepository
-	httpServer *http.Server
+	repo        *quantumdb.QuantumAuthRepository
+	httpServer  *http.Server
+	emailSender *email.SMTPSender
 }
 
 type SwaggerHTTPConfig struct {
@@ -29,6 +31,7 @@ type SwaggerHTTPConfig struct {
 type Config struct {
 	GRPCServicePort   string
 	DatabaseSettings  database.DatabaseSettings
+	SMTPConfig        email.SMTPConfig
 	SwaggerHTTPConfig SwaggerHTTPConfig
 	RedisConfig       rdb.Config
 }
@@ -42,6 +45,9 @@ func NewQuantumAuthService(ctx context.Context, cfg *Config) (*Service, error) {
 	cfg.DatabaseSettings.Password = os.Getenv("DB_PASS")
 	cfg.DatabaseSettings.Host = os.Getenv("DB_HOST")
 	port := os.Getenv("PORT")
+
+	cfg.SMTPConfig.Password = os.Getenv("SMTP_TOKEN")
+	cfg.SMTPConfig.Username = os.Getenv("SMTP_USER")
 
 	d, err := iofs.New(fs, "database/migrations")
 	if err != nil {
@@ -62,8 +68,9 @@ func NewQuantumAuthService(ctx context.Context, cfg *Config) (*Service, error) {
 	}
 
 	repo := quantumdb.NewRepository(db)
+	sender := email.NewSMTPSender(cfg.SMTPConfig)
 
-	engine := quantumhttp.NewRouter(ctx, repo)
+	engine := quantumhttp.NewRouter(ctx, repo, sender)
 
 	httpSrv := &http.Server{
 		Addr:    net.JoinHostPort(cfg.SwaggerHTTPConfig.Host, port),
@@ -71,8 +78,9 @@ func NewQuantumAuthService(ctx context.Context, cfg *Config) (*Service, error) {
 	}
 
 	return &Service{
-		httpServer: httpSrv,
-		repo:       repo,
+		httpServer:  httpSrv,
+		repo:        repo,
+		emailSender: sender,
 	}, nil
 }
 
