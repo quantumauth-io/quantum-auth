@@ -69,18 +69,18 @@ type SecurePingResponse struct {
 }
 
 type SignupRequest struct {
-	Email     string `json:"email" binding:"required,email"`
-	Username  string `json:"username"`
-	Password  string `json:"password"`
-	FirstName string `json:"firstName"`
-	LastName  string `json:"lastName"`
+	Email       string `json:"email" binding:"required,email"`
+	Username    string `json:"username"`
+	PasswordB64 string `json:"password_b64"`
+	FirstName   string `json:"firstName"`
+	LastName    string `json:"lastName"`
 }
 
 // ---- OLD
 
 type LoginRequest struct {
-	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required"`
+	Email       string `json:"email" binding:"required,email"`
+	PasswordB64 string `json:"password_b64" binding:"required"`
 }
 
 type LoginResponse struct {
@@ -97,8 +97,8 @@ type RequestResetRequest struct {
 }
 
 type ResetPasswordRequest struct {
-	Token    string `json:"token" binding:"required"`
-	Password string `json:"password" binding:"required,min=8"`
+	Token       string `json:"token" binding:"required"`
+	PasswordB64 string `json:"password_b64" binding:"required,min=8"`
 }
 
 type MeResponse struct {
@@ -112,7 +112,7 @@ type MeResponse struct {
 type fullLoginRequest struct {
 	UserID       string `json:"user_id"`
 	DeviceID     string `json:"device_id"`
-	Password     string `json:"password"`
+	PasswordB64  string `json:"password_b64"`
 	MessageB64   string `json:"message_b64"`
 	TPMSignature string `json:"tpm_signature"`
 	PQSignature  string `json:"pq_signature"`

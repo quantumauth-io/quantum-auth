@@ -13,8 +13,8 @@ import (
 	"github.com/quantumauth-io/quantum-auth/internal/quantum/database"
 	qdb "github.com/quantumauth-io/quantum-auth/internal/quantum/database"
 	"github.com/quantumauth-io/quantum-auth/internal/quantum/security"
-	"github.com/quantumauth-io/quantum-auth/pkg/qa/requests"
 	"github.com/quantumauth-io/quantum-go-utils/log"
+	"github.com/quantumauth-io/quantum-go-utils/qa/requests"
 )
 
 // QuantumAuthRepository is the subset of repo methods used by the HTTP layer.
@@ -82,7 +82,7 @@ func (h *Handler) RegisterUser(c *gin.Context) {
 		return
 	}
 
-	passwordHash, err := security.HashPassword(req.Password)
+	passwordHash, err := security.HashPassword(req.PasswordB64)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "hash error"})
 		return
@@ -424,7 +424,7 @@ func (h *Handler) FullLogin(c *gin.Context) {
 		return
 	}
 
-	if req.UserID == "" || req.DeviceID == "" || req.Password == "" ||
+	if req.UserID == "" || req.DeviceID == "" || req.PasswordB64 == "" ||
 		req.MessageB64 == "" || req.TPMSignature == "" || req.PQSignature == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "user_id, device_id, password, message, tpm_signature, pq_signature are required",
@@ -459,7 +459,7 @@ func (h *Handler) FullLogin(c *gin.Context) {
 	}
 
 	// 3) Verify password
-	ok, err := security.VerifyPassword(user.PasswordHash, req.Password)
+	ok, err := security.VerifyPassword(user.PasswordHash, req.PasswordB64)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

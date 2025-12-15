@@ -18,7 +18,7 @@ import (
 	"github.com/cloudflare/circl/sign/schemes"
 	"github.com/gin-gonic/gin"
 	qdb "github.com/quantumauth-io/quantum-auth/internal/quantum/database"
-	"github.com/quantumauth-io/quantum-auth/pkg/qa/requests"
+	"github.com/quantumauth-io/quantum-go-utils/qa/requests"
 )
 
 var pqScheme sign.Scheme
