@@ -9,8 +9,8 @@ env:
   AWS_REGION: us-east-2
   ECR_REPOSITORY: quantumauth-server
   ECS_CLUSTER: quantumauth-cluster
-  ECS_SERVICE: quantumauth-service-dev         # <-- dev service name
-  ECS_TASK_FAMILY: quantumauth-task            # same family is fine
+  ECS_SERVICE: quantumauth-service-dev
+  ECS_TASK_FAMILY: quantumauth-task-dev
   CONTAINER_NAME: quantumauth
 
 jobs:
@@ -74,5 +74,6 @@ jobs:
             --cluster "$ECS_CLUSTER" \
             --service "$ECS_SERVICE" \
             --task-definition "$TASK_DEF_ARN"
+            --force-new-deployment
 
           echo "Updated service $ECS_SERVICE to task definition $TASK_DEF_ARN"
