@@ -1,15 +1,17 @@
 SwaggerHTTPConfig:
   Port: "1042"
   Host: "0.0.0.0"
+
 DatabaseSettings:
-  Host: "quantum-auth-10762.jxf.cockroachlabs.cloud"
-  Port: "26257"
+  Host: "localhost"
+  Port: "5432"
   User: "quantum_auth_service"
-  Password: ""
-  Database: "quantum_auth"
-  CertPAth: "/etc/ssl/certs/ca-certificates.crt"
-  SSLModeDisable: false
+  Password: "local_dev_password"
+  Database: "quantumauth-db"
+  CertPath: ""                # not used locally
+  SSLModeDisable: true        # IMPORTANT for local Docker
   PoolSize: 5
+
 SMTPConfig:
   Host: "smtp.protonmail.ch"
   Port: "587"
