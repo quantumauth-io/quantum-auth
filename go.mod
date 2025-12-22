@@ -3,10 +3,10 @@ module github.com/quantumauth-io/quantum-auth
 go 1.25.4
 
 require (
-	github.com/cloudflare/circl v1.6.1
+	github.com/cloudflare/circl v1.6.2
 	github.com/gin-gonic/gin v1.11.0
 	github.com/golang-migrate/migrate/v4 v4.19.1
-	github.com/quantumauth-io/quantum-go-utils v0.0.13
+	github.com/quantumauth-io/quantum-go-utils v0.0.14
 	github.com/swaggo/files v1.0.1
 	github.com/swaggo/gin-swagger v1.6.1
 	github.com/swaggo/swag v1.16.6

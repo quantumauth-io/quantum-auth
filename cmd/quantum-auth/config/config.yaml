@@ -8,7 +8,7 @@ DatabaseSettings:
   User: "quantum_auth_service"
   Password: "local_dev_password"
   Database: "quantumauth-db"
-  CertPath: ""               
+  CertPath: ""
   SSLModeDisable: false
   PoolSize: 5
 
