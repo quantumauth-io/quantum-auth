@@ -116,3 +116,5 @@ If you rely on QuantumAuth or believe in our mission, please consider becoming a
 This section will list the names or logos of organizations and individuals who sponsor QuantumAuth at the *Project Sponsor* tier and above.
 
 If you'd like to be featured here, please visit our Sponsor page!  
+
+

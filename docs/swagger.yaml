@@ -1,6 +1,6 @@
 basePath: /
 definitions:
-  quantumhttp.SecurePingResponse:
+  http.SecurePingResponse:
     properties:
       device_id:
         type: string
@@ -11,7 +11,7 @@ definitions:
       user_id:
         type: string
     type: object
-  quantumhttp.SignupRequest:
+  http.SignupRequest:
     properties:
       email:
         type: string
@@ -19,48 +19,77 @@ definitions:
         type: string
       lastName:
         type: string
-      password:
+      password_b64:
         type: string
       username:
         type: string
     required:
     - email
     type: object
-  quantumhttp.authChallengeRequest:
+  http.authChallengeRequest:
     properties:
       device_id:
         type: string
     type: object
-  quantumhttp.authChallengeResponse:
+  http.authChallengeResponse:
     properties:
       challenge_id:
         type: string
       expires_at:
         type: string
       nonce:
-        type: string
+        type: integer
     type: object
-  quantumhttp.authVerifyRequest:
-    properties:
-      challenge_id:
-        type: string
-      device_id:
-        type: string
-      password:
-        type: string
-      pq_signature:
-        type: string
-      tpm_signature:
-        type: string
+  http.authVerifyRequest:
     type: object
-  quantumhttp.authVerifyResponse:
+  http.authVerifyResponse:
     properties:
       authenticated:
         type: boolean
       user_id:
         type: string
     type: object
-  quantumhttp.registerDeviceRequest:
+  http.fullLoginRequest:
+    properties:
+      device_id:
+        type: string
+      message_b64:
+        type: string
+      password_b64:
+        type: string
+      pq_signature:
+        type: string
+      tpm_signature:
+        type: string
+      user_id:
+        type: string
+    type: object
+  http.fullLoginResponse:
+    properties:
+      authenticated:
+        type: boolean
+      device_id:
+        type: string
+      user_id:
+        type: string
+    type: object
+  http.newsletterRequest:
+    properties:
+      email:
+        type: string
+    required:
+    - email
+    type: object
+  http.newsletterResponse:
+    properties:
+      email:
+        type: string
+      newsletter_id:
+        type: string
+      subscribed:
+        type: boolean
+    type: object
+  http.registerDeviceRequest:
     properties:
       device_label:
         type: string
@@ -68,19 +97,18 @@ definitions:
         type: string
       tpm_public_key:
         type: string
-      user_email:
+      user_Id:
         type: string
     type: object
-  quantumhttp.registerDeviceResponse:
+  http.registerDeviceResponse:
     properties:
       device_id:
         type: string
     type: object
-host: localhost:1042
 info:
   contact: {}
   description: Experimental quantum-resistant, hardware-aware auth service.
-  title: Quantum Auth API
+  title: QuantumAuth API
   version: "1.0"
 paths:
   /api/secure-ping:
@@ -92,7 +120,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/quantumhttp.SecurePingResponse'
+            $ref: '#/definitions/http.SecurePingResponse'
         "401":
           description: unauthorized
           schema:
@@ -111,14 +139,14 @@ paths:
         name: payload
         required: true
         schema:
-          $ref: '#/definitions/quantumhttp.authChallengeRequest'
+          $ref: '#/definitions/http.authChallengeRequest'
       produces:
       - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/quantumhttp.authChallengeResponse'
+            $ref: '#/definitions/http.authChallengeResponse'
         "400":
           description: invalid input
           schema:
@@ -130,39 +158,74 @@ paths:
       summary: Issue auth challenge
       tags:
       - auth
-  /auth/verify:
+  /auth/full-login:
     post:
       consumes:
       - application/json
-      description: Verifies a signed challenge response using TPM and PQ signatures
-        plus password
+      description: Authenticates a device by verifying the user's password and both
+        TPM & PQ signatures over a login message.
       parameters:
-      - description: Verify request
+      - description: Full login request
         in: body
         name: payload
         required: true
         schema:
-          $ref: '#/definitions/quantumhttp.authVerifyRequest'
+          $ref: '#/definitions/http.fullLoginRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/quantumhttp.authVerifyResponse'
+            $ref: '#/definitions/http.fullLoginResponse'
         "400":
           description: invalid input
           schema:
             type: string
         "401":
-          description: invalid signature or password
-          schema:
-            $ref: '#/definitions/quantumhttp.authVerifyResponse'
-        "404":
-          description: challenge or device not found
+          description: unauthorized
           schema:
             type: string
-      summary: Verify auth response (hybrid TPM + PQ)
+        "404":
+          description: user or device not found
+          schema:
+            type: string
+      summary: Full device login (password + TPM + PQ)
+      tags:
+      - auth
+  /auth/verify:
+    post:
+      consumes:
+      - application/json
+      description: Verifies TPM + PQ signatures in the Authorization header for an
+        API request
+      parameters:
+      - description: Verify request
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/http.authVerifyRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.authVerifyResponse'
+        "400":
+          description: invalid input
+          schema:
+            type: string
+        "401":
+          description: unauthorized
+          schema:
+            $ref: '#/definitions/http.authVerifyResponse'
+        "404":
+          description: user or device not found
+          schema:
+            type: string
+      summary: Verify signed QuantumAuth request
       tags:
       - auth
   /devices/register:
@@ -177,14 +240,14 @@ paths:
         name: payload
         required: true
         schema:
-          $ref: '#/definitions/quantumhttp.registerDeviceRequest'
+          $ref: '#/definitions/http.registerDeviceRequest'
       produces:
       - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/quantumhttp.registerDeviceResponse'
+            $ref: '#/definitions/http.registerDeviceResponse'
         "400":
           description: invalid input
           schema:
@@ -196,6 +259,74 @@ paths:
       summary: Register device
       tags:
       - devices
+  /newsletter/subscribe:
+    post:
+      consumes:
+      - application/json
+      description: Creates or re-subscribes an email to the newsletter
+      parameters:
+      - description: Newsletter subscribe payload
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/http.newsletterRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/http.newsletterResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Subscribe to newsletter
+      tags:
+      - newsletter
+  /newsletter/unsubscribe:
+    post:
+      consumes:
+      - application/json
+      description: Marks an email as unsubscribed (soft unsubscribe)
+      parameters:
+      - description: Newsletter unsubscribe payload
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/http.newsletterRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.newsletterResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Unsubscribe from newsletter
+      tags:
+      - newsletter
   /users/register:
     post:
       consumes:
@@ -207,7 +338,7 @@ paths:
         name: payload
         required: true
         schema:
-          $ref: '#/definitions/quantumhttp.SignupRequest'
+          $ref: '#/definitions/http.SignupRequest'
       produces:
       - application/json
       responses:

@@ -2,8 +2,11 @@ package http
 
 import (
 	"context"
+	"time"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/quantumauth-io/quantum-auth/docs"
 	_ "github.com/quantumauth-io/quantum-auth/docs"
 	"github.com/quantumauth-io/quantum-auth/internal/quantum/email"
 	qamw "github.com/quantumauth-io/quantum-auth/internal/quantum/transport/http/middleware"
@@ -35,6 +38,21 @@ func NewRouter(ctx context.Context, repo QuantumAuthRepository, emailSender *ema
 	r.Use(gin.Recovery())
 	_ = r.SetTrustedProxies(nil)
 
+	// ---- CORS (must be BEFORE routes) ----
+	r.Use(cors.New(cors.Config{
+		AllowOrigins: []string{
+			"http://localhost:4321",
+			"http://127.0.0.1:4321",
+			"https://dev.quantumauth.io",
+			"https://quantumauth.io",
+		},
+		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
+		ExposeHeaders:    []string{"Content-Length"},
+		AllowCredentials: false,
+		MaxAge:           12 * time.Hour,
+	}))
+
 	api := r.Group(ApiBase)
 
 	// ---- MAIN QuantumAuth API ----
@@ -51,7 +69,16 @@ func (r *Routes) Register(api *gin.RouterGroup) {
 	})
 
 	// ---- Swagger ----
-	api.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	api.GET("/swagger/*any", func(c *gin.Context) {
+		// If you're using swaggo docs package:
+		// import "github.com/quantumauth-io/quantum-auth/docs"
+		docs.SwaggerInfo.Host = c.Request.Host
+		docs.SwaggerInfo.Schemes = []string{"https"}
+		if c.Request.TLS == nil {
+			docs.SwaggerInfo.Schemes = []string{"http"}
+		}
+		ginSwagger.WrapHandler(swaggerFiles.Handler)(c)
+	})
 
 	// ---- Users ----
 	api.POST("/users/register", r.h.RegisterUser)
@@ -63,6 +90,10 @@ func (r *Routes) Register(api *gin.RouterGroup) {
 	api.POST("/auth/challenge", r.h.AuthChallenge)
 	api.POST("/auth/verify", r.h.AuthVerify)
 	api.POST("/auth/full-login", r.h.FullLogin)
+
+	// ---- Newsletter ----
+	api.POST("/newsletter/subscribe", r.h.NewsletterSubscribe)
+	api.POST("/newsletter/unsubscribe", r.h.NewsletterUnsubscribe)
 
 	// ---- Protected routes ----
 	secured := api.Group("/api")

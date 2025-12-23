@@ -123,3 +123,13 @@ type fullLoginResponse struct {
 	UserID        string `json:"user_id"`
 	DeviceID      string `json:"device_id"`
 }
+
+type newsletterRequest struct {
+	Email string `json:"email" binding:"required,email"`
+}
+
+type newsletterResponse struct {
+	NewsletterID string `json:"newsletter_id,omitempty"`
+	Email        string `json:"email"`
+	Subscribed   bool   `json:"subscribed"`
+}

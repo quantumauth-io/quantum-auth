@@ -36,8 +36,6 @@ type Config struct {
 	RedisConfig       rdb.Config
 }
 
-const ApiBase = "/quantum-auth/v1"
-
 //go:embed database/migrations/*.sql
 var fs embed.FS
 

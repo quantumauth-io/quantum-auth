@@ -11,10 +11,9 @@ import (
 	"github.com/quantumauth-io/quantum-go-utils/config"
 )
 
-// @title           Quantum Auth API
+// @title           QuantumAuth API
 // @version         1.0
 // @description     Experimental quantum-resistant, hardware-aware auth service.
-// @host            localhost:1042
 // @BasePath        /
 func main() {
 
