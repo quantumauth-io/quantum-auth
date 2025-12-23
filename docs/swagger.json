@@ -2,11 +2,10 @@
     "swagger": "2.0",
     "info": {
         "description": "Experimental quantum-resistant, hardware-aware auth service.",
-        "title": "Quantum Auth API",
+        "title": "QuantumAuth API",
         "contact": {},
         "version": "1.0"
     },
-    "host": "localhost:1042",
     "basePath": "/",
     "paths": {
         "/api/secure-ping": {
@@ -23,7 +22,7 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/quantumhttp.SecurePingResponse"
+                            "$ref": "#/definitions/http.SecurePingResponse"
                         }
                     },
                     "401": {
@@ -55,7 +54,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/quantumhttp.authChallengeRequest"
+                            "$ref": "#/definitions/http.authChallengeRequest"
                         }
                     }
                 ],
@@ -63,7 +62,7 @@
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/quantumhttp.authChallengeResponse"
+                            "$ref": "#/definitions/http.authChallengeResponse"
                         }
                     },
                     "400": {
@@ -81,9 +80,9 @@
                 }
             }
         },
-        "/auth/verify": {
+        "/auth/full-login": {
             "post": {
-                "description": "Verifies a signed challenge response using TPM and PQ signatures plus password",
+                "description": "Authenticates a device by verifying the user's password and both TPM \u0026 PQ signatures over a login message.",
                 "consumes": [
                     "application/json"
                 ],
@@ -93,15 +92,15 @@
                 "tags": [
                     "auth"
                 ],
-                "summary": "Verify auth response (hybrid TPM + PQ)",
+                "summary": "Full device login (password + TPM + PQ)",
                 "parameters": [
                     {
-                        "description": "Verify request",
+                        "description": "Full login request",
                         "name": "payload",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/quantumhttp.authVerifyRequest"
+                            "$ref": "#/definitions/http.fullLoginRequest"
                         }
                     }
                 ],
@@ -109,7 +108,7 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/quantumhttp.authVerifyResponse"
+                            "$ref": "#/definitions/http.fullLoginResponse"
                         }
                     },
                     "400": {
@@ -119,13 +118,65 @@
                         }
                     },
                     "401": {
-                        "description": "invalid signature or password",
+                        "description": "unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/quantumhttp.authVerifyResponse"
+                            "type": "string"
                         }
                     },
                     "404": {
-                        "description": "challenge or device not found",
+                        "description": "user or device not found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/verify": {
+            "post": {
+                "description": "Verifies TPM + PQ signatures in the Authorization header for an API request",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Verify signed QuantumAuth request",
+                "parameters": [
+                    {
+                        "description": "Verify request",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/http.authVerifyRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/http.authVerifyResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "invalid input",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/http.authVerifyResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "user or device not found",
                         "schema": {
                             "type": "string"
                         }
@@ -153,7 +204,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/quantumhttp.registerDeviceRequest"
+                            "$ref": "#/definitions/http.registerDeviceRequest"
                         }
                     }
                 ],
@@ -161,7 +212,7 @@
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/quantumhttp.registerDeviceResponse"
+                            "$ref": "#/definitions/http.registerDeviceResponse"
                         }
                     },
                     "400": {
@@ -174,6 +225,110 @@
                         "description": "user not found",
                         "schema": {
                             "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/newsletter/subscribe": {
+            "post": {
+                "description": "Creates or re-subscribes an email to the newsletter",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "newsletter"
+                ],
+                "summary": "Subscribe to newsletter",
+                "parameters": [
+                    {
+                        "description": "Newsletter subscribe payload",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/http.newsletterRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/http.newsletterResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/newsletter/unsubscribe": {
+            "post": {
+                "description": "Marks an email as unsubscribed (soft unsubscribe)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "newsletter"
+                ],
+                "summary": "Unsubscribe from newsletter",
+                "parameters": [
+                    {
+                        "description": "Newsletter unsubscribe payload",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/http.newsletterRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/http.newsletterResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
                         }
                     }
                 }
@@ -199,7 +354,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/quantumhttp.SignupRequest"
+                            "$ref": "#/definitions/http.SignupRequest"
                         }
                     }
                 ],
@@ -227,7 +382,7 @@
         }
     },
     "definitions": {
-        "quantumhttp.SecurePingResponse": {
+        "http.SecurePingResponse": {
             "type": "object",
             "properties": {
                 "device_id": {
@@ -244,7 +399,7 @@
                 }
             }
         },
-        "quantumhttp.SignupRequest": {
+        "http.SignupRequest": {
             "type": "object",
             "required": [
                 "email"
@@ -259,7 +414,7 @@
                 "lastName": {
                     "type": "string"
                 },
-                "password": {
+                "password_b64": {
                     "type": "string"
                 },
                 "username": {
@@ -267,7 +422,7 @@
                 }
             }
         },
-        "quantumhttp.authChallengeRequest": {
+        "http.authChallengeRequest": {
             "type": "object",
             "properties": {
                 "device_id": {
@@ -275,7 +430,7 @@
                 }
             }
         },
-        "quantumhttp.authChallengeResponse": {
+        "http.authChallengeResponse": {
             "type": "object",
             "properties": {
                 "challenge_id": {
@@ -285,31 +440,14 @@
                     "type": "string"
                 },
                 "nonce": {
-                    "type": "string"
+                    "type": "integer"
                 }
             }
         },
-        "quantumhttp.authVerifyRequest": {
-            "type": "object",
-            "properties": {
-                "challenge_id": {
-                    "type": "string"
-                },
-                "device_id": {
-                    "type": "string"
-                },
-                "password": {
-                    "type": "string"
-                },
-                "pq_signature": {
-                    "type": "string"
-                },
-                "tpm_signature": {
-                    "type": "string"
-                }
-            }
+        "http.authVerifyRequest": {
+            "type": "object"
         },
-        "quantumhttp.authVerifyResponse": {
+        "http.authVerifyResponse": {
             "type": "object",
             "properties": {
                 "authenticated": {
@@ -320,7 +458,69 @@
                 }
             }
         },
-        "quantumhttp.registerDeviceRequest": {
+        "http.fullLoginRequest": {
+            "type": "object",
+            "properties": {
+                "device_id": {
+                    "type": "string"
+                },
+                "message_b64": {
+                    "type": "string"
+                },
+                "password_b64": {
+                    "type": "string"
+                },
+                "pq_signature": {
+                    "type": "string"
+                },
+                "tpm_signature": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "http.fullLoginResponse": {
+            "type": "object",
+            "properties": {
+                "authenticated": {
+                    "type": "boolean"
+                },
+                "device_id": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "http.newsletterRequest": {
+            "type": "object",
+            "required": [
+                "email"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string"
+                }
+            }
+        },
+        "http.newsletterResponse": {
+            "type": "object",
+            "properties": {
+                "email": {
+                    "type": "string"
+                },
+                "newsletter_id": {
+                    "type": "string"
+                },
+                "subscribed": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "http.registerDeviceRequest": {
             "type": "object",
             "properties": {
                 "device_label": {
@@ -332,12 +532,12 @@
                 "tpm_public_key": {
                     "type": "string"
                 },
-                "user_email": {
+                "user_Id": {
                     "type": "string"
                 }
             }
         },
-        "quantumhttp.registerDeviceResponse": {
+        "http.registerDeviceResponse": {
             "type": "object",
             "properties": {
                 "device_id": {

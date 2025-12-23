@@ -30,6 +30,10 @@ type QuantumAuthRepository interface {
 
 	CreateChallenge(ctx context.Context, in *qdb.CreateChallengeInput) (string, error)
 	DeleteChallenge(ctx context.Context, id string) error
+
+	SubscribeNewsletter(ctx context.Context, in qdb.SubscribeNewsletterInput) (string, error)
+	UnsubscribeNewsletter(ctx context.Context, in qdb.UnsubscribeNewsletterInput) (string, error)
+	GetNewsletterByEmail(ctx context.Context, email string) (*qdb.NewsletterSubscription, error)
 }
 type Handler struct {
 	ctx         context.Context
@@ -105,7 +109,8 @@ func (h *Handler) RegisterUser(c *gin.Context) {
 		return
 	}
 
-	docsURL := "https://docs.quantumauth.io" // or config/env
+	docsURL := "https://docs.quantumauth.io"
+	logoURL := "https://quantumauth.io/logo.png"
 
 	err = h.emailSender.Send(c, email.Message{
 		FromName: "QuantumAuth",
@@ -113,7 +118,7 @@ func (h *Handler) RegisterUser(c *gin.Context) {
 		To:       req.Email,
 		Subject:  "Welcome to QuantumAuth",
 		TextBody: email.WelcomeEmailText(req.Username, docsURL),
-		HTMLBody: email.WelcomeEmailHTML(req.Username, docsURL),
+		HTMLBody: email.WelcomeEmailHTML(req.Username, docsURL, logoURL),
 	})
 
 	if err != nil {
@@ -535,5 +540,75 @@ func (h *Handler) FullLogin(c *gin.Context) {
 		Authenticated: true,
 		UserID:        user.ID,
 		DeviceID:      d.ID,
+	})
+}
+
+// NewsletterSubscribe
+// @BasePath /quantum-auth/v1
+// @Summary      Subscribe to newsletter
+// @Description  Creates or re-subscribes an email to the newsletter
+// @Tags         newsletter
+// @Accept       json
+// @Produce      json
+// @Param        payload  body      newsletterRequest true "Newsletter subscribe payload"
+// @Success      201      {object}  newsletterResponse
+// @Failure      400      {object}  map[string]string
+// @Failure      500      {object}  map[string]string
+// @Router       /newsletter/subscribe [post]
+func (h *Handler) NewsletterSubscribe(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	var req newsletterRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	id, err := h.repo.SubscribeNewsletter(ctx, qdb.SubscribeNewsletterInput{Email: req.Email})
+	if err != nil {
+		log.Error("SubscribeNewsletter failed", "error", err, "email", req.Email)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "subscribe failed"})
+		return
+	}
+
+	c.JSON(http.StatusCreated, newsletterResponse{
+		NewsletterID: id,
+		Email:        req.Email,
+		Subscribed:   true,
+	})
+}
+
+// NewsletterUnsubscribe
+// @BasePath /quantum-auth/v1
+// @Summary      Unsubscribe from newsletter
+// @Description  Marks an email as unsubscribed (soft unsubscribe)
+// @Tags         newsletter
+// @Accept       json
+// @Produce      json
+// @Param        payload  body      newsletterRequest true "Newsletter unsubscribe payload"
+// @Success      200      {object}  newsletterResponse
+// @Failure      400      {object}  map[string]string
+// @Failure      500      {object}  map[string]string
+// @Router       /newsletter/unsubscribe [post]
+func (h *Handler) NewsletterUnsubscribe(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	var req newsletterRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	id, err := h.repo.UnsubscribeNewsletter(ctx, qdb.UnsubscribeNewsletterInput{Email: req.Email})
+	if err != nil {
+		log.Error("UnsubscribeNewsletter failed", "error", err, "email", req.Email)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "unsubscribe failed"})
+		return
+	}
+
+	c.JSON(http.StatusOK, newsletterResponse{
+		NewsletterID: id,
+		Email:        req.Email,
+		Subscribed:   false,
 	})
 }
