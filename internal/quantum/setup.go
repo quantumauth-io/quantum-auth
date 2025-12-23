@@ -45,6 +45,7 @@ func NewQuantumAuthService(ctx context.Context, cfg *Config) (*Service, error) {
 	cfg.DatabaseSettings.Password = os.Getenv("DB_PASS")
 	cfg.DatabaseSettings.Host = os.Getenv("DB_HOST")
 	cfg.DatabaseSettings.User = os.Getenv("DB_USER")
+
 	port := os.Getenv("PORT")
 
 	cfg.SMTPConfig.Password = os.Getenv("SMTP_TOKEN")

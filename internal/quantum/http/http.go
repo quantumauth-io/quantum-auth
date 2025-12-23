@@ -46,7 +46,7 @@ func NewRouter(ctx context.Context, repo QuantumAuthRepository, emailSender *ema
 
 func (r *Routes) Register(api *gin.RouterGroup) {
 	// ---- Health ----
-	api.GET("/health", func(c *gin.Context) {
+	api.GET("/healthz", func(c *gin.Context) {
 		c.String(200, "ok")
 	})
 
