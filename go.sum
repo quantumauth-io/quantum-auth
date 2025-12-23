@@ -246,8 +246,8 @@ github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2/go.mod h1:iKH
 github.com/prometheus/procfs v0.0.0-20190425082905-87a4384529e0/go.mod h1:TjEm7ze935MbeOT/UhFTIMYKhuLP4wbCsTZCD3I8kEA=
 github.com/prometheus/procfs v0.12.0 h1:jluTpSng7V9hY0O2R9DzzJHYb2xULk9VTR1V1R/k6Bo=
 github.com/prometheus/procfs v0.12.0/go.mod h1:pcuDEFsWDnvcgNzo4EEweacyhjeA9Zk3cnaOZAZEfOo=
-github.com/quantumauth-io/quantum-go-utils v0.0.15 h1:E8i9twemNOKr7h6N6wy/b6JNEFxfQ+IEo6RfMnSkSQk=
-github.com/quantumauth-io/quantum-go-utils v0.0.15/go.mod h1:ATqtCmByVLN4lRW6x+f/FfBmqsQ53mEIjxqCxLzZ9lc=
+github.com/quantumauth-io/quantum-go-utils v0.0.16 h1:k7rEfAyA3LEBmtWFRTKvuw4BBo3N1Kxj7NUwPRYWDYc=
+github.com/quantumauth-io/quantum-go-utils v0.0.16/go.mod h1:ATqtCmByVLN4lRW6x+f/FfBmqsQ53mEIjxqCxLzZ9lc=
 github.com/quic-go/qpack v0.6.0 h1:g7W+BMYynC1LbYLSqRt8PBg5Tgwxn214ZZR34VIOjz8=
 github.com/quic-go/qpack v0.6.0/go.mod h1:lUpLKChi8njB4ty2bFLX2x4gzDqXwUpaO1DP9qMDZII=
 github.com/quic-go/quic-go v0.57.1 h1:25KAAR9QR8KZrCZRThWMKVAwGoiHIrNbT72ULHTuI10=
