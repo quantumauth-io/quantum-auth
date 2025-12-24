@@ -376,20 +376,30 @@ func (h *Handler) RegisterDevice(c *gin.Context) {
 		return
 	}
 
-	if req.UserId == "" || req.DeviceLabel == "" || req.TPMPublicKey == "" || req.PQPublicKey == "" {
+	if req.UserEmail == "" || req.DeviceLabel == "" || req.TPMPublicKey == "" || req.PQPublicKey == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "user_id, device_label, tpm_public_key and pq_public_key are required"})
 		return
 	}
-	u, err := h.repo.GetUserByID(ctx, req.UserId)
+	u, err := h.repo.GetUserByEmail(ctx, req.UserEmail)
 	if err != nil {
 		log.Error("GetUserByEmail", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	if u == nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Bad request"})
 		return
+	}
 
+	// 3) Verify password
+	ok, err := security.VerifyPassword(u.PasswordHash, req.PasswordB64)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
+		return
 	}
 
 	d := NewDevice(u.ID, req.DeviceLabel, req.TPMPublicKey, req.PQPublicKey)
