@@ -28,7 +28,8 @@ type authVerifyResponse struct {
 }
 
 type registerDeviceRequest struct {
-	UserId       string `json:"user_Id"`
+	UserEmail    string `json:"user_email,omitempty"`
+	PasswordB64  string `json:"password_b64,omitempty"`
 	DeviceLabel  string `json:"device_label"`
 	TPMPublicKey string `json:"tpm_public_key"`
 	PQPublicKey  string `json:"pq_public_key"`
