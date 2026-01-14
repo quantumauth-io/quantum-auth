@@ -82,7 +82,7 @@ func (r *Routes) Register(api *gin.RouterGroup) {
 
 	// ---- Users ----
 	api.POST("/users/register", r.h.RegisterUser)
-	api.GET("/users/me", r.h.RetrieveUser)
+	api.POST("/users/me", r.h.RetrieveUser)
 
 	// ---- Devices ----
 	api.POST("/devices/register", r.h.RegisterDevice)
