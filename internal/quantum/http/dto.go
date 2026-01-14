@@ -102,7 +102,12 @@ type ResetPasswordRequest struct {
 	PasswordB64 string `json:"password_b64" binding:"required,min=8"`
 }
 
-type MeResponse struct {
+type meRequest struct {
+	Email       string `json:"email"`
+	PasswordB64 string `json:"password_b64" binding:"required,min=8"`
+}
+
+type meResponse struct {
 	UserID    string `json:"userId"`
 	Email     string `json:"email"`
 	Username  string `json:"username,omitempty"`

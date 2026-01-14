@@ -320,7 +320,7 @@ func (h *Handler) AuthVerify(c *gin.Context) {
 		return
 	}
 
-	// TODO: if you want, you can also:
+	// TODO:
 	//  - verify X-QuantumAuth-Challenge-ID exists & not expired
 	//  - track/reject replayed Authorization nonces in Redis
 
@@ -550,6 +550,60 @@ func (h *Handler) FullLogin(c *gin.Context) {
 		Authenticated: true,
 		UserID:        user.ID,
 		DeviceID:      d.ID,
+	})
+}
+
+// RetrieveUser
+// @BasePath /quantum-auth/v1
+// @Summary      ME (email + password)
+// @Description  Retrieve you user info using your credential. Used to add new device to your account.
+// @Tags         users
+// @Accept       json
+// @Produce      json
+// @Param        payload  body      meRequest   true  "ME"
+// @Success      200      {object}  meResponse
+// @Failure      400      {string}  string  "invalid input"
+// @Failure      401      {string}  string  "unauthorized"
+// @Failure      404      {string}  string  "user or device not found"
+// @Router       /users/me [post]
+func (h *Handler) RetrieveUser(c *gin.Context) {
+	ctx := c.Request.Context()
+	var req meRequest
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if req.Email == "" || req.PasswordB64 == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "email and password are required",
+		})
+		return
+	}
+
+	user, err := h.repo.GetUserByEmail(ctx, req.Email)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if user == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	ok, err := security.VerifyPassword(user.PasswordHash, req.PasswordB64)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
+		return
+	}
+	
+	c.JSON(http.StatusOK, meResponse{
+		UserID: user.ID,
 	})
 }
 
