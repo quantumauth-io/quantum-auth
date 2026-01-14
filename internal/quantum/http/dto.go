@@ -5,8 +5,10 @@ import (
 	"time"
 )
 
+// ---------- Requests / Responses ----------
+
 type authChallengeRequest struct {
-	DeviceID string `json:"device_id"`
+	DeviceID string `json:"device_id" binding:"required"` // add uuid/len rule if you have one
 }
 
 type authChallengeResponse struct {
@@ -15,28 +17,26 @@ type authChallengeResponse struct {
 	ExpiresAt   time.Time `json:"expires_at"`
 }
 
-type Challenge struct {
-	ID        string    `json:"id"`
-	DeviceID  string    `json:"device_id"`
-	Nonce     string    `json:"nonce"`
-	ExpiresAt time.Time `json:"expires_at"`
+type authVerifyRequest struct {
+	Method    string            `json:"method" binding:"required,oneof=GET POST PUT PATCH DELETE"`
+	Path      string            `json:"path" binding:"required"`
+	Headers   map[string]string `json:"headers" binding:"required"`
+	Encrypted json.RawMessage   `json:"encrypted" binding:"required"` // must be present + non-empty
 }
 
+// Response: omitempty is good here to avoid leaking user_id when not authenticated.
 type authVerifyResponse struct {
 	Authenticated bool   `json:"authenticated"`
 	UserID        string `json:"user_id,omitempty"`
 }
 
-type registerDeviceRequest struct {
-	UserEmail    string `json:"user_email,omitempty"`
-	PasswordB64  string `json:"password_b64,omitempty"`
-	DeviceLabel  string `json:"device_label"`
-	TPMPublicKey string `json:"tpm_public_key"`
-	PQPublicKey  string `json:"pq_public_key"`
-}
+// ---------- Domain models ----------
 
-type registerDeviceResponse struct {
-	DeviceID string `json:"device_id"`
+type Challenge struct {
+	ID        string    `json:"id"`
+	DeviceID  string    `json:"device_id"`
+	Nonce     string    `json:"nonce"`
+	ExpiresAt time.Time `json:"expires_at"`
 }
 
 type Device struct {
@@ -48,40 +48,44 @@ type Device struct {
 	IsRevoked    bool      `json:"is_revoked"`
 }
 
-type authVerifyRequest struct {
-	Method    string            `json:"method"`
-	Path      string            `json:"path"`
-	Headers   map[string]string `json:"headers"`
-	Encrypted json.RawMessage   `json:"encrypted"` // keep for future decryption
-}
-
+// Signed payload: do NOT use omitempty anywhere.
 type SignedMessage struct {
-	ChallengeID string `json:"challenge_id"`
-	DeviceID    string `json:"device_id"`
-	Nonce       int64  `json:"nonce"`
-	Purpose     string `json:"purpose"`
+	ChallengeID string `json:"challenge_id" binding:"required"`
+	DeviceID    string `json:"device_id" binding:"required"`
+	Nonce       int64  `json:"nonce" binding:"required"`
+	Purpose     string `json:"purpose" binding:"required,oneof=login secure_ping verify_request"`
 }
 
-type SecurePingResponse struct {
-	Status   string `json:"status"`
-	Message  string `json:"message"`
-	UserID   string `json:"user_id"`
+// ---------- Device registration ----------
+
+// Option A (recommended): keep this endpoint purely password-backed, no omitempty.
+type registerDeviceRequest struct {
+	UserEmail    string `json:"user_email" binding:"required,email"`
+	PasswordB64  string `json:"password_b64" binding:"required,min=8"`
+	DeviceLabel  string `json:"device_label" binding:"required,min=1,max=64"`
+	TPMPublicKey string `json:"tpm_public_key" binding:"required,min=32"` // adjust min to your encoding
+	PQPublicKey  string `json:"pq_public_key" binding:"required,min=32"`
+}
+
+type registerDeviceResponse struct {
 	DeviceID string `json:"device_id"`
 }
 
+// ---------- Signup / login ----------
+
 type SignupRequest struct {
 	Email       string `json:"email" binding:"required,email"`
-	Username    string `json:"username"`
-	PasswordB64 string `json:"password_b64"`
-	FirstName   string `json:"firstName"`
-	LastName    string `json:"lastName"`
+	Username    string `json:"username" binding:"omitempty,min=3,max=32"`
+	PasswordB64 string `json:"password_b64" binding:"required,min=8"`
+	FirstName   string `json:"firstName" binding:"omitempty,max=64"`
+	LastName    string `json:"lastName" binding:"omitempty,max=64"`
 }
 
 // ---- OLD
 
 type LoginRequest struct {
 	Email       string `json:"email" binding:"required,email"`
-	PasswordB64 string `json:"password_b64" binding:"required"`
+	PasswordB64 string `json:"password_b64" binding:"required,min=8"`
 }
 
 type LoginResponse struct {
@@ -89,7 +93,7 @@ type LoginResponse struct {
 }
 
 type ChangePasswordRequest struct {
-	Current string `json:"current" binding:"required"`
+	Current string `json:"current" binding:"required,min=8"`
 	New     string `json:"new" binding:"required,min=8"`
 }
 
@@ -103,7 +107,7 @@ type ResetPasswordRequest struct {
 }
 
 type meRequest struct {
-	Email       string `json:"email"`
+	Email       string `json:"email" binding:"required,email"`
 	PasswordB64 string `json:"password_b64" binding:"required,min=8"`
 }
 
@@ -116,18 +120,18 @@ type meResponse struct {
 }
 
 type fullLoginRequest struct {
-	UserID       string `json:"user_id"`
-	DeviceID     string `json:"device_id"`
-	PasswordB64  string `json:"password_b64"`
-	MessageB64   string `json:"message_b64"`
-	TPMSignature string `json:"tpm_signature"`
-	PQSignature  string `json:"pq_signature"`
+	UserID       string `json:"user_id" binding:"required"`
+	DeviceID     string `json:"device_id" binding:"required"`
+	PasswordB64  string `json:"password_b64" binding:"required,min=8"`
+	MessageB64   string `json:"message_b64" binding:"omitempty"`
+	TPMSignature string `json:"tpm_signature" binding:"omitempty"`
+	PQSignature  string `json:"pq_signature" binding:"omitempty"`
 }
 
 type fullLoginResponse struct {
 	Authenticated bool   `json:"authenticated"`
-	UserID        string `json:"user_id"`
-	DeviceID      string `json:"device_id"`
+	UserID        string `json:"user_id,omitempty"`
+	DeviceID      string `json:"device_id,omitempty"`
 }
 
 type newsletterRequest struct {
@@ -138,4 +142,11 @@ type newsletterResponse struct {
 	NewsletterID string `json:"newsletter_id,omitempty"`
 	Email        string `json:"email"`
 	Subscribed   bool   `json:"subscribed"`
+}
+
+type SecurePingResponse struct {
+	Status   string `json:"status"`
+	Message  string `json:"message"`
+	UserID   string `json:"user_id"`
+	DeviceID string `json:"device_id"`
 }
