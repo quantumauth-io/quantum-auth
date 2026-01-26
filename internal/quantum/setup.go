@@ -12,10 +12,10 @@ import (
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 	quantumdb "github.com/quantumauth-io/quantum-auth/internal/quantum/database"
 	"github.com/quantumauth-io/quantum-auth/internal/quantum/email"
-	quantumhttp "github.com/quantumauth-io/quantum-auth/internal/quantum/http"
+	quantumhttp "github.com/quantumauth-io/quantum-auth/internal/quantum/qahttp"
+	"github.com/quantumauth-io/quantum-auth/internal/quantum/services"
 	"github.com/quantumauth-io/quantum-go-utils/database"
 	"github.com/quantumauth-io/quantum-go-utils/log"
-	rdb "github.com/quantumauth-io/quantum-go-utils/redis"
 )
 
 type Service struct {
@@ -33,7 +33,7 @@ type Config struct {
 	DatabaseSettings  database.DatabaseSettings
 	SMTPConfig        email.SMTPConfig
 	SwaggerHTTPConfig SwaggerHTTPConfig
-	RedisConfig       rdb.Config
+	DNSVerifierConfig services.AppVerifierConfig
 }
 
 //go:embed database/migrations/*.sql
@@ -43,11 +43,10 @@ func NewQuantumAuthService(ctx context.Context, cfg *Config) (*Service, error) {
 	cfg.DatabaseSettings.Password = os.Getenv("DB_PASS")
 	cfg.DatabaseSettings.Host = os.Getenv("DB_HOST")
 	cfg.DatabaseSettings.User = os.Getenv("DB_USER")
-
-	port := os.Getenv("PORT")
-
+	cfg.SwaggerHTTPConfig.Port = os.Getenv("PORT")
 	cfg.SMTPConfig.Password = os.Getenv("SMTP_TOKEN")
 	cfg.SMTPConfig.Username = os.Getenv("SMTP_USER")
+	cfg.DNSVerifierConfig.DNSServerAddr = os.Getenv("DNS_SERVER_ADDR")
 
 	d, err := iofs.New(fs, "database/migrations")
 	if err != nil {
@@ -73,9 +72,13 @@ func NewQuantumAuthService(ctx context.Context, cfg *Config) (*Service, error) {
 	engine := quantumhttp.NewRouter(ctx, repo, sender)
 
 	httpSrv := &http.Server{
-		Addr:    net.JoinHostPort(cfg.SwaggerHTTPConfig.Host, port),
+		Addr:    net.JoinHostPort(cfg.SwaggerHTTPConfig.Host, cfg.SwaggerHTTPConfig.Port),
 		Handler: engine,
 	}
+
+	verifier := services.NewAppVerifierService(repo, cfg.DNSVerifierConfig)
+
+	verifier.Start(ctx)
 
 	return &Service{
 		httpServer:  httpSrv,
@@ -97,7 +100,7 @@ func (s *Service) Run(ctx context.Context) {
 }
 
 func (s *Service) Shutdown() {
-	log.Info("shutting down http server...")
+	log.Info("shutting down qa http server...")
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

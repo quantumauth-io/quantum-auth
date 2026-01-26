@@ -2,10 +2,7 @@ package database
 
 import (
 	"context"
-	"fmt"
 	"time"
-
-	"github.com/quantumauth-io/quantum-go-utils/log"
 )
 
 // Device represents a row in the devices table.
@@ -25,6 +22,10 @@ type CreateDeviceInput struct {
 	PQPublicKey  string
 }
 
+type UpdateDeviceByIDInput struct {
+	DeviceLabel *string
+}
+
 // CreateDevice creates a new device for a given user.
 func (r *QuantumAuthRepository) CreateDevice(ctx context.Context, in *CreateDeviceInput) (string, error) {
 	const query = `
@@ -41,12 +42,10 @@ func (r *QuantumAuthRepository) CreateDevice(ctx context.Context, in *CreateDevi
 		in.PQPublicKey,
 	)
 	if err != nil {
-		log.Error("Error creating device", "error", err)
 		return "", err
 	}
 
 	if err = resultRow.Scan(&id); err != nil {
-		log.Error("Error creating device", "error", err)
 		return "", err
 	}
 
@@ -64,8 +63,6 @@ func (r *QuantumAuthRepository) GetDeviceByID(ctx context.Context, deviceID stri
 	var d Device
 	resultRow, err := r.db.QueryRow(ctx, query, deviceID)
 	if err != nil {
-		log.Error("db error", "type", fmt.Sprintf("%T", err), "err", fmt.Sprintf("%+v", err))
-		log.Error("Error getting device", "error", err, "device_id", deviceID)
 		return nil, err
 	}
 
@@ -78,7 +75,6 @@ func (r *QuantumAuthRepository) GetDeviceByID(ctx context.Context, deviceID stri
 		&d.CreatedAt,
 	)
 	if err != nil {
-		log.Error("Error getting device", "error", err)
 		return nil, err
 	}
 
@@ -96,7 +92,7 @@ func (r *QuantumAuthRepository) GetDevicesByUserID(ctx context.Context, userID s
 
 	rows, err := r.db.Query(ctx, query, userID)
 	if err != nil {
-		log.Error("Error getting devices", "error", err)
+
 		return nil, err
 	}
 	defer rows.Close()
@@ -113,11 +109,42 @@ func (r *QuantumAuthRepository) GetDevicesByUserID(ctx context.Context, userID s
 			&d.PQPublicKey,
 			&d.CreatedAt,
 		); err != nil {
-			log.Error("Error scanning devices", "error", err)
+
 			return nil, err
 		}
 		out = append(out, &d)
 	}
 
 	return out, rows.Err()
+}
+
+func (r *QuantumAuthRepository) UpdateDeviceByID(ctx context.Context, deviceID string, in UpdateDeviceByIDInput) (*Device, error) {
+	const query = `
+		UPDATE devices
+		SET
+			device_label = COALESCE($2, device_label)
+		WHERE device_id = $1
+		RETURNING device_id, user_id, device_label, tpm_public_key, pq_public_key, created_at;
+	`
+
+	var d Device
+	row, err := r.db.QueryRow(ctx, query, deviceID, in.DeviceLabel)
+	if err != nil {
+
+		return nil, err
+	}
+
+	if err := row.Scan(
+		&d.ID,
+		&d.UserID,
+		&d.DeviceLabel,
+		&d.TPMPublicKey,
+		&d.PQPublicKey,
+		&d.CreatedAt,
+	); err != nil {
+
+		return nil, err
+	}
+
+	return &d, nil
 }

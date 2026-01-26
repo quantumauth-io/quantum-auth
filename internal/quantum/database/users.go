@@ -3,8 +3,6 @@ package database
 import (
 	"context"
 	"time"
-
-	"github.com/quantumauth-io/quantum-go-utils/log"
 )
 
 // User represents a row in the users table.
@@ -13,8 +11,8 @@ type User struct {
 	Username     string
 	Email        string
 	PasswordHash string
-	FirstName    *string
-	LastName     *string
+	FirstName    string
+	LastName     string
 	CreatedAt    time.Time
 }
 
@@ -24,6 +22,12 @@ type CreateUserInput struct {
 	Username  string
 	FirstName string
 	LastName  string
+}
+type UpdateUserByIDInput struct {
+	Email     *string
+	Username  *string
+	FirstName *string
+	LastName  *string
 }
 
 // CreateUser creates a new user with the given email, password, and username.
@@ -43,12 +47,12 @@ func (r *QuantumAuthRepository) CreateUser(ctx context.Context, in CreateUserInp
 		in.LastName,
 	)
 	if err != nil {
-		log.Error("Error creating user", "error", err)
+
 		return "", err
 	}
 	err = resultRow.Scan(&id)
 	if err != nil {
-		log.Error("Error creating user", "error", err)
+
 		return "", err
 	}
 
@@ -66,7 +70,7 @@ func (r *QuantumAuthRepository) GetUserByID(ctx context.Context, id string) (*Us
 	var u User
 	resultRow, err := r.db.QueryRow(ctx, query, id)
 	if err != nil {
-		log.Error("Error getting user", "error", err)
+
 		return nil, err
 	}
 
@@ -80,7 +84,7 @@ func (r *QuantumAuthRepository) GetUserByID(ctx context.Context, id string) (*Us
 		&u.CreatedAt,
 	)
 	if err != nil {
-		log.Error("Error getting user", "error", err)
+
 		return nil, err
 	}
 
@@ -98,7 +102,7 @@ func (r *QuantumAuthRepository) GetUserByEmail(ctx context.Context, email string
 	var u User
 	resultRow, err := r.db.QueryRow(ctx, query, email)
 	if err != nil {
-		log.Error("Error getting user", "error", err)
+
 		return nil, err
 	}
 
@@ -112,7 +116,48 @@ func (r *QuantumAuthRepository) GetUserByEmail(ctx context.Context, email string
 		&u.CreatedAt,
 	)
 	if err != nil {
-		log.Error("Error getting user", "error", err)
+
+		return nil, err
+	}
+
+	return &u, nil
+}
+
+func (r *QuantumAuthRepository) UpdateUserByID(ctx context.Context, id string, in UpdateUserByIDInput) (*User, error) {
+	const query = `
+		UPDATE users
+		SET
+			email = COALESCE($2, email),
+			username = COALESCE($3, username),
+			first_name = COALESCE($4, first_name),
+			last_name = COALESCE($5, last_name)
+		WHERE user_id = $1
+		RETURNING user_id, username, email, password_hash, first_name, last_name, created_at;
+	`
+
+	var u User
+	row, err := r.db.QueryRow(ctx, query,
+		id,
+		in.Email,
+		in.Username,
+		in.FirstName,
+		in.LastName,
+	)
+	if err != nil {
+
+		return nil, err
+	}
+
+	if err := row.Scan(
+		&u.ID,
+		&u.Username,
+		&u.Email,
+		&u.PasswordHash,
+		&u.FirstName,
+		&u.LastName,
+		&u.CreatedAt,
+	); err != nil {
+
 		return nil, err
 	}
 

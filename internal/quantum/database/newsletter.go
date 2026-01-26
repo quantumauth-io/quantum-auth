@@ -3,8 +3,6 @@ package database
 import (
 	"context"
 	"time"
-
-	"github.com/quantumauth-io/quantum-go-utils/log"
 )
 
 // NewsletterSubscription represents a row in the newsletter table.
@@ -35,12 +33,10 @@ func (r *QuantumAuthRepository) SubscribeNewsletter(ctx context.Context, in Subs
 	var id string
 	row, err := r.db.QueryRow(ctx, query, in.Email)
 	if err != nil {
-		log.Error("Error subscribing newsletter", "error", err, "email", in.Email)
 		return "", err
 	}
 
 	if err := row.Scan(&id); err != nil {
-		log.Error("Error subscribing newsletter (scan)", "error", err, "email", in.Email)
 		return "", err
 	}
 
@@ -64,12 +60,12 @@ func (r *QuantumAuthRepository) UnsubscribeNewsletter(ctx context.Context, in Un
 	var id string
 	row, err := r.db.QueryRow(ctx, query, in.Email)
 	if err != nil {
-		log.Error("Error unsubscribing newsletter", "error", err, "email", in.Email)
+
 		return "", err
 	}
 
 	if err := row.Scan(&id); err != nil {
-		log.Error("Error unsubscribing newsletter (scan)", "error", err, "email", in.Email)
+
 		return "", err
 	}
 
@@ -87,7 +83,7 @@ func (r *QuantumAuthRepository) GetNewsletterByEmail(ctx context.Context, email 
 	var n NewsletterSubscription
 	row, err := r.db.QueryRow(ctx, query, email)
 	if err != nil {
-		log.Error("Error getting newsletter subscription", "error", err, "email", email)
+
 		return nil, err
 	}
 
@@ -98,7 +94,7 @@ func (r *QuantumAuthRepository) GetNewsletterByEmail(ctx context.Context, email 
 		&n.CreatedAt,
 		&n.UpdatedAt,
 	); err != nil {
-		log.Error("Error getting newsletter subscription (scan)", "error", err, "email", email)
+
 		return nil, err
 	}
 
@@ -117,13 +113,12 @@ func (r *QuantumAuthRepository) IsNewsletterSubscribed(ctx context.Context, emai
 	var subscribed bool
 	row, err := r.db.QueryRow(ctx, query, email)
 	if err != nil {
-		// You likely want to treat "no rows" as not subscribed at call site.
-		log.Error("Error checking newsletter subscription", "error", err, "email", email)
+
 		return false, err
 	}
 
 	if err := row.Scan(&subscribed); err != nil {
-		log.Error("Error checking newsletter subscription (scan)", "error", err, "email", email)
+
 		return false, err
 	}
 

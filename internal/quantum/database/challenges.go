@@ -2,9 +2,8 @@ package database
 
 import (
 	"context"
+	"errors"
 	"time"
-
-	"github.com/quantumauth-io/quantum-go-utils/log"
 )
 
 // Challenge represents a challenge issued for authentication.
@@ -18,15 +17,18 @@ type Challenge struct {
 
 type CreateChallengeInput struct {
 	DeviceID  string
+	AppID     string
 	Nonce     int64
 	ExpiresAt time.Time
 }
 
+var ErrChallengeNotFoundOrAlreadyUsed = errors.New("challenge not found or already used")
+
 // CreateChallenge inserts a new challenge into the database.
 func (r *QuantumAuthRepository) CreateChallenge(ctx context.Context, in *CreateChallengeInput) (string, error) {
 	const query = `
-		INSERT INTO auth_challenges (device_id, expires_at)
-		VALUES ($1, $2)
+		INSERT INTO auth_challenges (device_id, expires_at, app_id)
+		VALUES ($1, $2, $3)
 		RETURNING challenge_id;
 	`
 
@@ -34,14 +36,13 @@ func (r *QuantumAuthRepository) CreateChallenge(ctx context.Context, in *CreateC
 	resultRow, err := r.db.QueryRow(ctx, query,
 		in.DeviceID,
 		in.ExpiresAt,
+		in.AppID,
 	)
 	if err != nil {
-		log.Error("Error creating challenge", "error", err)
 		return "", err
 	}
 
 	if err := resultRow.Scan(&id); err != nil {
-		log.Error("Error creating challenge", "error", err)
 		return "", err
 	}
 
@@ -59,7 +60,7 @@ func (r *QuantumAuthRepository) GetChallenge(ctx context.Context, challengeID st
 	var c Challenge
 	resultRow, err := r.db.QueryRow(ctx, query, challengeID)
 	if err != nil {
-		log.Error("Error getting challenge", "error", err)
+
 		return nil, err
 	}
 
@@ -71,7 +72,7 @@ func (r *QuantumAuthRepository) GetChallenge(ctx context.Context, challengeID st
 		&c.CreatedAt,
 	)
 	if err != nil {
-		log.Error("Error getting challenge", "error", err)
+
 		return nil, err
 	}
 
@@ -79,19 +80,29 @@ func (r *QuantumAuthRepository) GetChallenge(ctx context.Context, challengeID st
 }
 
 // DeleteChallenge removes a challenge once it has been consumed.
-func (r *QuantumAuthRepository) DeleteChallenge(ctx context.Context, challengeID string) error {
-
+func (r *QuantumAuthRepository) ConsumeChallenge(ctx context.Context, challengeID, deviceID, appID string) error {
 	const query = `
 		DELETE FROM auth_challenges
-		WHERE challenge_id = $1;
+		WHERE challenge_id = $1
+		  AND device_id    = $2
+		  AND app_id       = $3
+		  AND expires_at   > now();
 	`
 
-	_, err := r.db.Exec(ctx, query, challengeID)
+	ct, err := r.db.Exec(ctx, query, challengeID, deviceID, appID)
 	if err != nil {
-		log.Error("Error deleting challenge", "error", err)
+		return err
 	}
 
-	return err
+	rows, err := ct.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return ErrChallengeNotFoundOrAlreadyUsed
+	}
+
+	return nil
 }
 
 // DeleteExpiredChallenges removes all outdated challenges.
@@ -103,13 +114,14 @@ func (r *QuantumAuthRepository) DeleteExpiredChallenges(ctx context.Context, now
 
 	result, err := r.db.Exec(ctx, query, now)
 	if err != nil {
-		log.Error("Error deleting expired challenges", "error", err)
+
 		return 0, err
 	}
 
 	tag, err := result.RowsAffected()
 	if err != nil {
-		log.Error("Error deleting expired challenges", "error", err)
+
+		return 0, err
 	}
 
 	return tag, nil

@@ -15,32 +15,6 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/api/secure-ping": {
-            "get": {
-                "description": "Confirms that the request was authenticated using TPM + PQ signatures.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "secure"
-                ],
-                "summary": "Quantum-secured ping",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/http.SecurePingResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "unauthorized",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
-        },
         "/auth/challenge": {
             "post": {
                 "description": "Issues a short-lived challenge (nonce) for a registered device",
@@ -61,7 +35,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/http.authChallengeRequest"
+                            "$ref": "#/definitions/qahttp.authChallengeRequest"
                         }
                     }
                 ],
@@ -69,7 +43,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/http.authChallengeResponse"
+                            "$ref": "#/definitions/qahttp.authChallengeResponse"
                         }
                     },
                     "400": {
@@ -107,7 +81,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/http.fullLoginRequest"
+                            "$ref": "#/definitions/qahttp.fullLoginRequest"
                         }
                     }
                 ],
@@ -115,7 +89,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/http.fullLoginResponse"
+                            "$ref": "#/definitions/qahttp.fullLoginResponse"
                         }
                     },
                     "400": {
@@ -159,7 +133,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/http.authVerifyRequest"
+                            "$ref": "#/definitions/qahttp.authVerifyRequest"
                         }
                     }
                 ],
@@ -167,7 +141,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/http.authVerifyResponse"
+                            "$ref": "#/definitions/qahttp.authVerifyResponse"
                         }
                     },
                     "400": {
@@ -179,7 +153,7 @@ const docTemplate = `{
                     "401": {
                         "description": "unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/http.authVerifyResponse"
+                            "$ref": "#/definitions/qahttp.authVerifyResponse"
                         }
                     },
                     "404": {
@@ -211,7 +185,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/http.registerDeviceRequest"
+                            "$ref": "#/definitions/qahttp.registerDeviceRequest"
                         }
                     }
                 ],
@@ -219,7 +193,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/http.registerDeviceResponse"
+                            "$ref": "#/definitions/qahttp.registerDeviceResponse"
                         }
                     },
                     "400": {
@@ -257,7 +231,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/http.newsletterRequest"
+                            "$ref": "#/definitions/qahttp.newsletterRequest"
                         }
                     }
                 ],
@@ -265,7 +239,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/http.newsletterResponse"
+                            "$ref": "#/definitions/qahttp.newsletterResponse"
                         }
                     },
                     "400": {
@@ -309,7 +283,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/http.newsletterRequest"
+                            "$ref": "#/definitions/qahttp.newsletterRequest"
                         }
                     }
                 ],
@@ -317,7 +291,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/http.newsletterResponse"
+                            "$ref": "#/definitions/qahttp.newsletterResponse"
                         }
                     },
                     "400": {
@@ -336,6 +310,477 @@ const docTemplate = `{
                             "additionalProperties": {
                                 "type": "string"
                             }
+                        }
+                    }
+                }
+            }
+        },
+        "/qa/apps": {
+            "get": {
+                "description": "List all apps owned by the authenticated user.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "developer apps"
+                ],
+                "summary": "List my apps",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/qahttp.appResponse"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "internal server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Create an app and return DNS TXT verification instructions.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "developer apps"
+                ],
+                "summary": "Create a developer app",
+                "parameters": [
+                    {
+                        "description": "Create app",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/qahttp.createAppRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/qahttp.createAppResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "invalid input",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "409": {
+                        "description": "domain already exists",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "internal server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/qa/apps/{app_id}": {
+            "get": {
+                "description": "Get an app by id (must be owned by the authenticated user).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "developer apps"
+                ],
+                "summary": "Get my app",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "App ID",
+                        "name": "app_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/qahttp.appResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "403": {
+                        "description": "forbidden",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "not found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "internal server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "description": "Partially update an app. Changing domain resets verification and issues a new token.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "developer apps"
+                ],
+                "summary": "Update my app",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "App ID",
+                        "name": "app_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update app",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/qahttp.updateAppRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/qahttp.createAppResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "invalid input",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "403": {
+                        "description": "forbidden",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "not found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "409": {
+                        "description": "domain already exists",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "internal server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/qa/devices": {
+            "get": {
+                "description": "Retrieve all devices registered to the authenticated user.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "device profile"
+                ],
+                "summary": "List devices for current user",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/qahttp.deviceResponse"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "internal server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/qa/devices/{device_id}": {
+            "patch": {
+                "description": "Partially update a device that belongs to the authenticated user. Currently supports updating device_label.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "device profile"
+                ],
+                "summary": "Update a device",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Device ID",
+                        "name": "device_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Device fields to update",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/qahttp.updateDeviceRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/qahttp.deviceResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "invalid input",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "403": {
+                        "description": "forbidden",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "device not found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "internal server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/qa/users/me": {
+            "get": {
+                "description": "Retrieve the authenticated user's profile.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "user profile"
+                ],
+                "summary": "Get current user profile",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/qahttp.meResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "user not found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "description": "Partially update the authenticated user's profile. Only provided fields are updated.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "user profile"
+                ],
+                "summary": "Update current user profile",
+                "parameters": [
+                    {
+                        "description": "User profile fields to update",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/qahttp.updateMeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/qahttp.meResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "invalid input",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "409": {
+                        "description": "email or username already exists",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "internal server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/users/me": {
+            "post": {
+                "description": "Retrieve you user info using your credential. Used to add new device to your account.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "ME (email + password)",
+                "parameters": [
+                    {
+                        "description": "ME",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/qahttp.meRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/qahttp.meResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "invalid input",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "user or device not found",
+                        "schema": {
+                            "type": "string"
                         }
                     }
                 }
@@ -361,7 +806,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/http.SignupRequest"
+                            "$ref": "#/definitions/qahttp.SignupRequest"
                         }
                     }
                 ],
@@ -389,55 +834,92 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "http.SecurePingResponse": {
-            "type": "object",
-            "properties": {
-                "device_id": {
-                    "type": "string"
-                },
-                "message": {
-                    "type": "string"
-                },
-                "status": {
-                    "type": "string"
-                },
-                "user_id": {
-                    "type": "string"
-                }
-            }
-        },
-        "http.SignupRequest": {
+        "qahttp.SignupRequest": {
             "type": "object",
             "required": [
-                "email"
+                "email",
+                "password_b64"
             ],
             "properties": {
                 "email": {
                     "type": "string"
                 },
                 "firstName": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 64
                 },
                 "lastName": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 64
                 },
                 "password_b64": {
-                    "type": "string"
+                    "type": "string",
+                    "minLength": 8
                 },
                 "username": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 32,
+                    "minLength": 3
                 }
             }
         },
-        "http.authChallengeRequest": {
+        "qahttp.appResponse": {
             "type": "object",
             "properties": {
+                "app_id": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "domain": {
+                    "type": "string"
+                },
+                "last_checked_at": {
+                    "type": "string"
+                },
+                "last_verified_at": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "owner_user_id": {
+                    "type": "string"
+                },
+                "pq_public_key_b64": {
+                    "type": "string"
+                },
+                "tier": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "verification_token": {
+                    "type": "string"
+                },
+                "verified": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "qahttp.authChallengeRequest": {
+            "type": "object",
+            "required": [
+                "device_id"
+            ],
+            "properties": {
                 "device_id": {
+                    "description": "add uuid/len rule if you have one",
                     "type": "string"
                 }
             }
         },
-        "http.authChallengeResponse": {
+        "qahttp.authChallengeResponse": {
             "type": "object",
             "properties": {
                 "challenge_id": {
@@ -451,10 +933,10 @@ const docTemplate = `{
                 }
             }
         },
-        "http.authVerifyRequest": {
+        "qahttp.authVerifyRequest": {
             "type": "object"
         },
-        "http.authVerifyResponse": {
+        "qahttp.authVerifyResponse": {
             "type": "object",
             "properties": {
                 "authenticated": {
@@ -465,8 +947,81 @@ const docTemplate = `{
                 }
             }
         },
-        "http.fullLoginRequest": {
+        "qahttp.createAppRequest": {
             "type": "object",
+            "required": [
+                "domain",
+                "name"
+            ],
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "domain": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 255,
+                    "minLength": 2
+                },
+                "pq_public_key_b64": {
+                    "type": "string"
+                }
+            }
+        },
+        "qahttp.createAppResponse": {
+            "type": "object",
+            "properties": {
+                "app": {
+                    "$ref": "#/definitions/qahttp.appResponse"
+                },
+                "dns": {
+                    "type": "object",
+                    "properties": {
+                        "record_name": {
+                            "type": "string"
+                        },
+                        "record_type": {
+                            "type": "string"
+                        },
+                        "record_value": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "qahttp.deviceResponse": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "device_id": {
+                    "type": "string"
+                },
+                "device_label": {
+                    "type": "string"
+                },
+                "pq_public_key": {
+                    "type": "string"
+                },
+                "tpm_public_key": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "qahttp.fullLoginRequest": {
+            "type": "object",
+            "required": [
+                "device_id",
+                "password_b64",
+                "user_id"
+            ],
             "properties": {
                 "device_id": {
                     "type": "string"
@@ -475,7 +1030,8 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "password_b64": {
-                    "type": "string"
+                    "type": "string",
+                    "minLength": 8
                 },
                 "pq_signature": {
                     "type": "string"
@@ -488,7 +1044,7 @@ const docTemplate = `{
                 }
             }
         },
-        "http.fullLoginResponse": {
+        "qahttp.fullLoginResponse": {
             "type": "object",
             "properties": {
                 "authenticated": {
@@ -502,7 +1058,46 @@ const docTemplate = `{
                 }
             }
         },
-        "http.newsletterRequest": {
+        "qahttp.meRequest": {
+            "type": "object",
+            "required": [
+                "email",
+                "password_b64"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string"
+                },
+                "password_b64": {
+                    "type": "string",
+                    "minLength": 8
+                }
+            }
+        },
+        "qahttp.meResponse": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string"
+                },
+                "first_name": {
+                    "type": "string"
+                },
+                "last_name": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "qahttp.newsletterRequest": {
             "type": "object",
             "required": [
                 "email"
@@ -513,7 +1108,7 @@ const docTemplate = `{
                 }
             }
         },
-        "http.newsletterResponse": {
+        "qahttp.newsletterResponse": {
             "type": "object",
             "properties": {
                 "email": {
@@ -527,27 +1122,91 @@ const docTemplate = `{
                 }
             }
         },
-        "http.registerDeviceRequest": {
+        "qahttp.registerDeviceRequest": {
             "type": "object",
+            "required": [
+                "device_label",
+                "password_b64",
+                "pq_public_key",
+                "tpm_public_key",
+                "user_email"
+            ],
             "properties": {
                 "device_label": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 64,
+                    "minLength": 1
+                },
+                "password_b64": {
+                    "type": "string",
+                    "minLength": 8
                 },
                 "pq_public_key": {
-                    "type": "string"
+                    "type": "string",
+                    "minLength": 32
                 },
                 "tpm_public_key": {
-                    "type": "string"
+                    "description": "adjust min to your encoding",
+                    "type": "string",
+                    "minLength": 32
                 },
-                "user_Id": {
+                "user_email": {
                     "type": "string"
                 }
             }
         },
-        "http.registerDeviceResponse": {
+        "qahttp.registerDeviceResponse": {
             "type": "object",
             "properties": {
                 "device_id": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "qahttp.updateAppRequest": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "domain": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "pq_public_key_b64": {
+                    "type": "string"
+                },
+                "tier": {
+                    "type": "string"
+                }
+            }
+        },
+        "qahttp.updateDeviceRequest": {
+            "type": "object",
+            "properties": {
+                "device_label": {
+                    "type": "string"
+                }
+            }
+        },
+        "qahttp.updateMeRequest": {
+            "type": "object",
+            "properties": {
+                "email": {
+                    "type": "string"
+                },
+                "first_name": {
+                    "type": "string"
+                },
+                "last_name": {
+                    "type": "string"
+                },
+                "username": {
                     "type": "string"
                 }
             }

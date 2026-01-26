@@ -59,3 +59,48 @@ func parseUncompressedP256(b []byte) (*ecdsa.PublicKey, error) {
 		Y:     y,
 	}, nil
 }
+
+func VerifyTPMWithDiagnostics(pubKeyB64 string, msg []byte, sigB64 string) (ok bool, mode string) {
+	// parse pubkey + sig exactly the same way as VerifyTPMSignature
+	pubBytes, err := base64.RawStdEncoding.DecodeString(pubKeyB64)
+	if err != nil {
+		return false, "pub_b64_decode_failed"
+	}
+	pubKey, err := parseUncompressedP256(pubBytes)
+	if err != nil {
+		return false, "pub_parse_failed"
+	}
+
+	sigBytes, err := base64.RawStdEncoding.DecodeString(sigB64)
+	if err != nil {
+		return false, "sig_b64_decode_failed"
+	}
+	if len(sigBytes) != 64 {
+		return false, "sig_len_not_64"
+	}
+	r := new(big.Int).SetBytes(sigBytes[:32])
+	s := new(big.Int).SetBytes(sigBytes[32:])
+
+	// A) what you currently do: digest = sha256(msg)
+	d1 := sha256.Sum256(msg)
+	if ecdsa.Verify(pubKey, d1[:], r, s) {
+		return true, "sha256(msg)"
+	}
+
+	// B) common bug: signer already hashed msg, and verifier hashes again (double hash mismatch)
+	d2 := sha256.Sum256(d1[:])
+	if ecdsa.Verify(pubKey, d2[:], r, s) {
+		return true, "sha256(sha256(msg))"
+	}
+
+	// C) signer used the 32-byte digest directly as "msg" (i.e. server should NOT hash again)
+	// Only makes sense if msg is already 32 bytes (it isn't in your case),
+	// but keep for completeness.
+	if len(msg) == 32 {
+		if ecdsa.Verify(pubKey, msg, r, s) {
+			return true, "msg_is_digest_32bytes"
+		}
+	}
+
+	return false, "no_match"
+}

@@ -1,37 +1,64 @@
 basePath: /
 definitions:
-  http.SecurePingResponse:
-    properties:
-      device_id:
-        type: string
-      message:
-        type: string
-      status:
-        type: string
-      user_id:
-        type: string
-    type: object
-  http.SignupRequest:
+  qahttp.SignupRequest:
     properties:
       email:
         type: string
       firstName:
+        maxLength: 64
         type: string
       lastName:
+        maxLength: 64
         type: string
       password_b64:
+        minLength: 8
         type: string
       username:
+        maxLength: 32
+        minLength: 3
         type: string
     required:
     - email
+    - password_b64
     type: object
-  http.authChallengeRequest:
+  qahttp.appResponse:
+    properties:
+      app_id:
+        type: string
+      created_at:
+        type: string
+      description:
+        type: string
+      domain:
+        type: string
+      last_checked_at:
+        type: string
+      last_verified_at:
+        type: string
+      name:
+        type: string
+      owner_user_id:
+        type: string
+      pq_public_key_b64:
+        type: string
+      tier:
+        type: string
+      updated_at:
+        type: string
+      verification_token:
+        type: string
+      verified:
+        type: boolean
+    type: object
+  qahttp.authChallengeRequest:
     properties:
       device_id:
+        description: add uuid/len rule if you have one
         type: string
+    required:
+    - device_id
     type: object
-  http.authChallengeResponse:
+  qahttp.authChallengeResponse:
     properties:
       challenge_id:
         type: string
@@ -40,22 +67,68 @@ definitions:
       nonce:
         type: integer
     type: object
-  http.authVerifyRequest:
+  qahttp.authVerifyRequest:
     type: object
-  http.authVerifyResponse:
+  qahttp.authVerifyResponse:
     properties:
       authenticated:
         type: boolean
       user_id:
         type: string
     type: object
-  http.fullLoginRequest:
+  qahttp.createAppRequest:
+    properties:
+      description:
+        type: string
+      domain:
+        type: string
+      name:
+        maxLength: 255
+        minLength: 2
+        type: string
+      pq_public_key_b64:
+        type: string
+    required:
+    - domain
+    - name
+    type: object
+  qahttp.createAppResponse:
+    properties:
+      app:
+        $ref: '#/definitions/qahttp.appResponse'
+      dns:
+        properties:
+          record_name:
+            type: string
+          record_type:
+            type: string
+          record_value:
+            type: string
+        type: object
+    type: object
+  qahttp.deviceResponse:
+    properties:
+      created_at:
+        type: string
+      device_id:
+        type: string
+      device_label:
+        type: string
+      pq_public_key:
+        type: string
+      tpm_public_key:
+        type: string
+      user_id:
+        type: string
+    type: object
+  qahttp.fullLoginRequest:
     properties:
       device_id:
         type: string
       message_b64:
         type: string
       password_b64:
+        minLength: 8
         type: string
       pq_signature:
         type: string
@@ -63,8 +136,12 @@ definitions:
         type: string
       user_id:
         type: string
+    required:
+    - device_id
+    - password_b64
+    - user_id
     type: object
-  http.fullLoginResponse:
+  qahttp.fullLoginResponse:
     properties:
       authenticated:
         type: boolean
@@ -73,14 +150,40 @@ definitions:
       user_id:
         type: string
     type: object
-  http.newsletterRequest:
+  qahttp.meRequest:
+    properties:
+      email:
+        type: string
+      password_b64:
+        minLength: 8
+        type: string
+    required:
+    - email
+    - password_b64
+    type: object
+  qahttp.meResponse:
+    properties:
+      created_at:
+        type: string
+      email:
+        type: string
+      first_name:
+        type: string
+      last_name:
+        type: string
+      user_id:
+        type: string
+      username:
+        type: string
+    type: object
+  qahttp.newsletterRequest:
     properties:
       email:
         type: string
     required:
     - email
     type: object
-  http.newsletterResponse:
+  qahttp.newsletterResponse:
     properties:
       email:
         type: string
@@ -89,20 +192,65 @@ definitions:
       subscribed:
         type: boolean
     type: object
-  http.registerDeviceRequest:
+  qahttp.registerDeviceRequest:
+    properties:
+      device_label:
+        maxLength: 64
+        minLength: 1
+        type: string
+      password_b64:
+        minLength: 8
+        type: string
+      pq_public_key:
+        minLength: 32
+        type: string
+      tpm_public_key:
+        description: adjust min to your encoding
+        minLength: 32
+        type: string
+      user_email:
+        type: string
+    required:
+    - device_label
+    - password_b64
+    - pq_public_key
+    - tpm_public_key
+    - user_email
+    type: object
+  qahttp.registerDeviceResponse:
+    properties:
+      device_id:
+        type: string
+      user_id:
+        type: string
+    type: object
+  qahttp.updateAppRequest:
+    properties:
+      description:
+        type: string
+      domain:
+        type: string
+      name:
+        type: string
+      pq_public_key_b64:
+        type: string
+      tier:
+        type: string
+    type: object
+  qahttp.updateDeviceRequest:
     properties:
       device_label:
         type: string
-      pq_public_key:
-        type: string
-      tpm_public_key:
-        type: string
-      user_Id:
-        type: string
     type: object
-  http.registerDeviceResponse:
+  qahttp.updateMeRequest:
     properties:
-      device_id:
+      email:
+        type: string
+      first_name:
+        type: string
+      last_name:
+        type: string
+      username:
         type: string
     type: object
 info:
@@ -111,23 +259,6 @@ info:
   title: QuantumAuth API
   version: "1.0"
 paths:
-  /api/secure-ping:
-    get:
-      description: Confirms that the request was authenticated using TPM + PQ signatures.
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/http.SecurePingResponse'
-        "401":
-          description: unauthorized
-          schema:
-            type: string
-      summary: Quantum-secured ping
-      tags:
-      - secure
   /auth/challenge:
     post:
       consumes:
@@ -139,14 +270,14 @@ paths:
         name: payload
         required: true
         schema:
-          $ref: '#/definitions/http.authChallengeRequest'
+          $ref: '#/definitions/qahttp.authChallengeRequest'
       produces:
       - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/http.authChallengeResponse'
+            $ref: '#/definitions/qahttp.authChallengeResponse'
         "400":
           description: invalid input
           schema:
@@ -170,14 +301,14 @@ paths:
         name: payload
         required: true
         schema:
-          $ref: '#/definitions/http.fullLoginRequest'
+          $ref: '#/definitions/qahttp.fullLoginRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/http.fullLoginResponse'
+            $ref: '#/definitions/qahttp.fullLoginResponse'
         "400":
           description: invalid input
           schema:
@@ -205,14 +336,14 @@ paths:
         name: payload
         required: true
         schema:
-          $ref: '#/definitions/http.authVerifyRequest'
+          $ref: '#/definitions/qahttp.authVerifyRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/http.authVerifyResponse'
+            $ref: '#/definitions/qahttp.authVerifyResponse'
         "400":
           description: invalid input
           schema:
@@ -220,7 +351,7 @@ paths:
         "401":
           description: unauthorized
           schema:
-            $ref: '#/definitions/http.authVerifyResponse'
+            $ref: '#/definitions/qahttp.authVerifyResponse'
         "404":
           description: user or device not found
           schema:
@@ -240,14 +371,14 @@ paths:
         name: payload
         required: true
         schema:
-          $ref: '#/definitions/http.registerDeviceRequest'
+          $ref: '#/definitions/qahttp.registerDeviceRequest'
       produces:
       - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/http.registerDeviceResponse'
+            $ref: '#/definitions/qahttp.registerDeviceResponse'
         "400":
           description: invalid input
           schema:
@@ -270,14 +401,14 @@ paths:
         name: payload
         required: true
         schema:
-          $ref: '#/definitions/http.newsletterRequest'
+          $ref: '#/definitions/qahttp.newsletterRequest'
       produces:
       - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/http.newsletterResponse'
+            $ref: '#/definitions/qahttp.newsletterResponse'
         "400":
           description: Bad Request
           schema:
@@ -304,14 +435,14 @@ paths:
         name: payload
         required: true
         schema:
-          $ref: '#/definitions/http.newsletterRequest'
+          $ref: '#/definitions/qahttp.newsletterRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/http.newsletterResponse'
+            $ref: '#/definitions/qahttp.newsletterResponse'
         "400":
           description: Bad Request
           schema:
@@ -327,6 +458,321 @@ paths:
       summary: Unsubscribe from newsletter
       tags:
       - newsletter
+  /qa/apps:
+    get:
+      description: List all apps owned by the authenticated user.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/qahttp.appResponse'
+            type: array
+        "401":
+          description: unauthorized
+          schema:
+            type: string
+        "500":
+          description: internal server error
+          schema:
+            type: string
+      summary: List my apps
+      tags:
+      - developer apps
+    post:
+      consumes:
+      - application/json
+      description: Create an app and return DNS TXT verification instructions.
+      parameters:
+      - description: Create app
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/qahttp.createAppRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/qahttp.createAppResponse'
+        "400":
+          description: invalid input
+          schema:
+            type: string
+        "401":
+          description: unauthorized
+          schema:
+            type: string
+        "409":
+          description: domain already exists
+          schema:
+            type: string
+        "500":
+          description: internal server error
+          schema:
+            type: string
+      summary: Create a developer app
+      tags:
+      - developer apps
+  /qa/apps/{app_id}:
+    get:
+      description: Get an app by id (must be owned by the authenticated user).
+      parameters:
+      - description: App ID
+        in: path
+        name: app_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/qahttp.appResponse'
+        "401":
+          description: unauthorized
+          schema:
+            type: string
+        "403":
+          description: forbidden
+          schema:
+            type: string
+        "404":
+          description: not found
+          schema:
+            type: string
+        "500":
+          description: internal server error
+          schema:
+            type: string
+      summary: Get my app
+      tags:
+      - developer apps
+    patch:
+      consumes:
+      - application/json
+      description: Partially update an app. Changing domain resets verification and
+        issues a new token.
+      parameters:
+      - description: App ID
+        in: path
+        name: app_id
+        required: true
+        type: string
+      - description: Update app
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/qahttp.updateAppRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/qahttp.createAppResponse'
+        "400":
+          description: invalid input
+          schema:
+            type: string
+        "401":
+          description: unauthorized
+          schema:
+            type: string
+        "403":
+          description: forbidden
+          schema:
+            type: string
+        "404":
+          description: not found
+          schema:
+            type: string
+        "409":
+          description: domain already exists
+          schema:
+            type: string
+        "500":
+          description: internal server error
+          schema:
+            type: string
+      summary: Update my app
+      tags:
+      - developer apps
+  /qa/devices:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve all devices registered to the authenticated user.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/qahttp.deviceResponse'
+            type: array
+        "401":
+          description: unauthorized
+          schema:
+            type: string
+        "500":
+          description: internal server error
+          schema:
+            type: string
+      summary: List devices for current user
+      tags:
+      - device profile
+  /qa/devices/{device_id}:
+    patch:
+      consumes:
+      - application/json
+      description: Partially update a device that belongs to the authenticated user.
+        Currently supports updating device_label.
+      parameters:
+      - description: Device ID
+        in: path
+        name: device_id
+        required: true
+        type: string
+      - description: Device fields to update
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/qahttp.updateDeviceRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/qahttp.deviceResponse'
+        "400":
+          description: invalid input
+          schema:
+            type: string
+        "401":
+          description: unauthorized
+          schema:
+            type: string
+        "403":
+          description: forbidden
+          schema:
+            type: string
+        "404":
+          description: device not found
+          schema:
+            type: string
+        "500":
+          description: internal server error
+          schema:
+            type: string
+      summary: Update a device
+      tags:
+      - device profile
+  /qa/users/me:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve the authenticated user's profile.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/qahttp.meResponse'
+        "401":
+          description: unauthorized
+          schema:
+            type: string
+        "404":
+          description: user not found
+          schema:
+            type: string
+      summary: Get current user profile
+      tags:
+      - user profile
+    patch:
+      consumes:
+      - application/json
+      description: Partially update the authenticated user's profile. Only provided
+        fields are updated.
+      parameters:
+      - description: User profile fields to update
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/qahttp.updateMeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/qahttp.meResponse'
+        "400":
+          description: invalid input
+          schema:
+            type: string
+        "401":
+          description: unauthorized
+          schema:
+            type: string
+        "409":
+          description: email or username already exists
+          schema:
+            type: string
+        "500":
+          description: internal server error
+          schema:
+            type: string
+      summary: Update current user profile
+      tags:
+      - user profile
+  /users/me:
+    post:
+      consumes:
+      - application/json
+      description: Retrieve you user info using your credential. Used to add new device
+        to your account.
+      parameters:
+      - description: ME
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/qahttp.meRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/qahttp.meResponse'
+        "400":
+          description: invalid input
+          schema:
+            type: string
+        "401":
+          description: unauthorized
+          schema:
+            type: string
+        "404":
+          description: user or device not found
+          schema:
+            type: string
+      summary: ME (email + password)
+      tags:
+      - users
   /users/register:
     post:
       consumes:
@@ -338,7 +784,7 @@ paths:
         name: payload
         required: true
         schema:
-          $ref: '#/definitions/http.SignupRequest'
+          $ref: '#/definitions/qahttp.SignupRequest'
       produces:
       - application/json
       responses:
