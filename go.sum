@@ -372,8 +372,8 @@ github.com/prometheus/common v0.42.0 h1:EKsfXEYo4JpWMHH5cg+KOUWeuJSov1Id8zGR8eeI
 github.com/prometheus/common v0.42.0/go.mod h1:xBwqVerjNdUDjgODMpudtOMwlOwf2SaTr1yjz4b7Zbc=
 github.com/prometheus/procfs v0.19.2 h1:zUMhqEW66Ex7OXIiDkll3tl9a1ZdilUOd/F6ZXw4Vws=
 github.com/prometheus/procfs v0.19.2/go.mod h1:M0aotyiemPhBCM0z5w87kL22CxfcH05ZpYlu+b4J7mw=
-github.com/quantumauth-io/go-quantumauth-mw v0.0.4 h1:13looYvCwWrkHTAwvmd8+k8pgRQD5DcInyrd7yxg3WA=
-github.com/quantumauth-io/go-quantumauth-mw v0.0.4/go.mod h1:V2Had8XLOqVO8qoFk5Y4Boc+uUTWs/ZGvWxn7hqKpTg=
+github.com/quantumauth-io/go-quantumauth-mw v0.0.5 h1:lllpW5n+2R5meFn3P+03cMgVlzy3nA3zrkzLx1FRIeY=
+github.com/quantumauth-io/go-quantumauth-mw v0.0.5/go.mod h1:V2Had8XLOqVO8qoFk5Y4Boc+uUTWs/ZGvWxn7hqKpTg=
 github.com/quantumauth-io/quantum-go-utils v0.0.37 h1:nT8Lp4SxKtVQQLVkTc4BkKwEKIFdlMw/urHjwzoKq6g=
 github.com/quantumauth-io/quantum-go-utils v0.0.37/go.mod h1:Jtt/EEKVeJ+Mc5Rw83FQG/0g0EtlxWr33K2nr9SAOpE=
 github.com/quic-go/qpack v0.6.0 h1:g7W+BMYynC1LbYLSqRt8PBg5Tgwxn214ZZR34VIOjz8=
