@@ -9,7 +9,7 @@ DatabaseSettings:
   Password: "local_dev_password"
   Database: "quantumauth-db"
   CertPath: ""
-  SSLModeDisable: true
+  SSLModeDisable: false
   PoolSize: 5
 
 SMTPConfig:
