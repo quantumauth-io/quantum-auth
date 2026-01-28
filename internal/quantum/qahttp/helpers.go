@@ -2,30 +2,31 @@ package qahttp
 
 import (
 	"crypto/rand"
+	"database/sql"
 	"encoding/base64"
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/quantumauth-io/quantum-auth/internal/quantum/constants"
 	"github.com/quantumauth-io/quantum-auth/internal/quantum/database"
 )
 
 func toAppResponse(a *database.App) appResponse {
-	desc := a.Description
 	return appResponse{
 		AppID:             a.AppID,
 		OwnerUserID:       a.OwnerUserID,
 		Name:              a.Name,
-		Description:       desc,
+		Description:       fromNullString(a.Description),
 		Domain:            a.Domain,
 		BackendHost:       a.BackendHost,
 		Tier:              a.Tier,
 		Verified:          a.Verified,
 		VerificationToken: a.VerificationToken,
 		PQPublicKeyB64:    encodePQKeyB64(a.PQPublicKey),
-		LastVerifiedAt:    a.LastVerifiedAt,
-		LastCheckedAt:     a.LastCheckedAt,
+		LastVerifiedAt:    ptrFromNullTime(a.LastVerifiedAt),
+		LastCheckedAt:     ptrFromNullTime(a.LastCheckedAt),
 		CreatedAt:         a.CreatedAt,
 		UpdatedAt:         a.UpdatedAt,
 	}
@@ -36,6 +37,9 @@ func trimPtr(s *string) *string {
 		return nil
 	}
 	v := strings.TrimSpace(*s)
+	if v == "" {
+		return nil
+	}
 	return &v
 }
 
@@ -76,7 +80,6 @@ func encodePQKeyB64(b []byte) *string {
 		return nil
 	}
 	s := base64.StdEncoding.EncodeToString(b)
-
 	return &s
 }
 
@@ -87,4 +90,29 @@ func swaggerEnabled() bool {
 	default:
 		return false
 	}
+}
+
+func strPtr(s string) *string { return &s }
+
+func fromNullString(ns sql.NullString) string {
+	if ns.Valid {
+		return ns.String
+	}
+	return ""
+}
+
+func ptrFromNullString(ns sql.NullString) *string {
+	if ns.Valid {
+		s := ns.String
+		return &s
+	}
+	return nil
+}
+
+func ptrFromNullTime(nt sql.NullTime) *time.Time {
+	if nt.Valid {
+		t := nt.Time
+		return &t
+	}
+	return nil
 }

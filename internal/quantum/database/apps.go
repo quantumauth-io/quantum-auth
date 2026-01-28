@@ -4,21 +4,16 @@ import (
 	"context"
 	"database/sql"
 	"time"
-
-	"github.com/jackc/pgtype"
 )
 
 type App struct {
-	AppID       string
-	OwnerUserID string
-	Name        string
-
-	// nullable
-	Description    sql.NullString `db:"description"`
-	LastVerifiedAt sql.NullTime   `db:"last_verified_at"`
-	LastCheckedAt  sql.NullTime   `db:"last_checked_at"`
-	PQPublicKey    pgtype.Bytea   `db:"pq_public_key"`
-
+	AppID             string
+	OwnerUserID       string
+	Name              string
+	Description       sql.NullString `db:"description"`
+	LastVerifiedAt    sql.NullTime   `db:"last_verified_at"`
+	LastCheckedAt     sql.NullTime   `db:"last_checked_at"`
+	PQPublicKey       []byte         `db:"pq_public_key"`
 	Domain            string
 	Tier              string // "free" | "premium"
 	VerificationToken string
