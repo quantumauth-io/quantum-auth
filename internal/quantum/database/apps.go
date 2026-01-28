@@ -2,24 +2,31 @@ package database
 
 import (
 	"context"
+	"database/sql"
 	"time"
+
+	"github.com/jackc/pgtype"
 )
 
 type App struct {
-	AppID             string
-	OwnerUserID       string
-	Name              string
-	Description       string
+	AppID       string
+	OwnerUserID string
+	Name        string
+
+	// nullable
+	Description    sql.NullString `db:"description"`
+	LastVerifiedAt sql.NullTime   `db:"last_verified_at"`
+	LastCheckedAt  sql.NullTime   `db:"last_checked_at"`
+	PQPublicKey    pgtype.Bytea   `db:"pq_public_key"`
+
 	Domain            string
 	Tier              string // "free" | "premium"
 	VerificationToken string
 	Verified          bool
-	LastVerifiedAt    *time.Time
-	LastCheckedAt     *time.Time
-	PQPublicKey       []byte
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
-	BackendHost       string
+
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	BackendHost string
 }
 
 type CreateAppInput struct {
