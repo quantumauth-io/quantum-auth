@@ -17,8 +17,9 @@ type AppVerifierConfig struct {
 	IntervalSeconds   time.Duration // e.g. 30s, 1m, 5m
 	BatchSize         int           // e.g. 200-1000
 	DNSTimeoutSeconds time.Duration // e.g. 2s-5s
-	DNSServerAddr     string
+	DNSServerAddr     string        // optional explicit resolver (e.g. 1.1.1.1:53)
 }
+
 type AppVerifierRuntimeConfig struct {
 	Interval      time.Duration
 	BatchSize     int
@@ -36,9 +37,6 @@ type AppRepo interface {
 	SetAppVerification(ctx context.Context, in database.SetAppVerificationInput) error
 }
 
-// If your repo already is *database.QuantumAuthRepository, it will satisfy this interface
-// as long as it has the methods above.
-
 func NewAppVerifierService(repo *database.QuantumAuthRepository, cfg AppVerifierConfig) *AppVerifierService {
 	interval := cfg.IntervalSeconds
 	if interval <= 0 {
@@ -55,7 +53,12 @@ func NewAppVerifierService(repo *database.QuantumAuthRepository, cfg AppVerifier
 		dnsTimeout = 3
 	}
 
-	dnsServerAddr := strings.TrimSpace(os.Getenv("DNS_SERVER_ADDR"))
+	// Prefer explicit cfg value; fallback to env for compatibility
+	dnsServerAddr := strings.TrimSpace(cfg.DNSServerAddr)
+	if dnsServerAddr == "" {
+		dnsServerAddr = strings.TrimSpace(os.Getenv("DNS_SERVER_ADDR"))
+	}
+	dnsServerAddr = normalizeDNSServerAddr(dnsServerAddr)
 
 	return &AppVerifierService{
 		repo: repo,
@@ -68,25 +71,26 @@ func NewAppVerifierService(repo *database.QuantumAuthRepository, cfg AppVerifier
 	}
 }
 
-func (s *AppVerifierService) dnsResolver() *net.Resolver {
-	if s.cfg.DNSServerAddr == "" {
-		return net.DefaultResolver
+func normalizeDNSServerAddr(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return ""
 	}
 
-	return &net.Resolver{
-		PreferGo: true, // critical: makes Dial take effect on all platforms
-		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-			d := net.Dialer{Timeout: s.cfg.DNSTimeout}
-
-			// Prefer UDP for DNS; use TCP automatically if caller asks for tcp.
-			// But net.Resolver may pass "udp" or "tcp" here depending on retry behavior.
-			if network != "udp" && network != "tcp" {
-				network = "udp"
-			}
-
-			return d.DialContext(ctx, network, s.cfg.DNSServerAddr)
-		},
+	// If it looks like an IPv6 literal without brackets and without port, assume :53.
+	// (If you need IPv6+port, provide it as "[::1]:53".)
+	if strings.Count(s, ":") >= 2 && !strings.HasPrefix(s, "[") && !strings.Contains(s, "]:") {
+		// no port; keep as-is (Dial will likely fail). Encourage bracket form.
+		// Prefer being explicit rather than guessing wrong.
+		return s
 	}
+
+	// If no port provided (IPv4 or hostname), append :53
+	if !strings.Contains(s, ":") {
+		return s + ":53"
+	}
+
+	return s
 }
 
 func (s *AppVerifierService) Start(ctx context.Context) {
@@ -183,22 +187,105 @@ func (s *AppVerifierService) runOnce(ctx context.Context) {
 }
 
 func (s *AppVerifierService) lookupTXT(ctx context.Context, domain, token string) (bool, error) {
-	host := constants.QADNSRecordName + strings.ToLower(strings.TrimSpace(domain))
-	want := constants.QADNSRecordValuePrefix + token
-
-	lookupCtx, cancel := context.WithTimeout(ctx, s.cfg.DNSTimeout)
-	defer cancel()
-
-	resolver := s.dnsResolver()
-	txts, err := resolver.LookupTXT(lookupCtx, host)
+	fqdn, err := buildQATXTName(domain)
 	if err != nil {
 		return false, err
 	}
 
-	for _, v := range txts {
-		if strings.TrimSpace(v) == want {
-			return true, nil
+	want := constants.QADNSRecordValuePrefix + token
+
+	var lastErr error
+	for _, r := range s.resolverChain() {
+		lookupCtx, cancel := context.WithTimeout(ctx, s.cfg.DNSTimeout)
+		txts, e := r.LookupTXT(lookupCtx, fqdn)
+		cancel()
+
+		if e != nil {
+			lastErr = e
+			continue
 		}
+
+		// Resolver successfully answered. Now check for the exact token.
+		for _, v := range txts {
+			if strings.TrimSpace(v) == want {
+				return true, nil
+			}
+		}
+		return false, nil
 	}
-	return false, nil
+
+	return false, lastErr
+}
+
+func buildQATXTName(domain string) (string, error) {
+	d := strings.ToLower(strings.TrimSpace(domain))
+	if d == "" {
+		return "", &net.DNSError{Err: "empty domain", Name: domain}
+	}
+
+	// If someone accidentally passed a URL, strip scheme/path/port.
+	if strings.Contains(d, "://") {
+		host := requests.HostnameForDNS(d)
+		if host == "" {
+			return "", &net.DNSError{Err: "invalid domain", Name: domain}
+		}
+		d = host
+	}
+
+	// Remove trailing dot if present.
+	d = strings.TrimSuffix(d, ".")
+
+	// Ensure we always generate: <QADNSRecordName><domain>
+	// where QADNSRecordName may or may not already include a trailing dot.
+	prefix := strings.TrimSpace(constants.QADNSRecordName)
+	prefix = strings.TrimSuffix(prefix, ".")
+
+	// Avoid double prefixing if caller already provided it.
+	if d == prefix || strings.HasPrefix(d, prefix+".") {
+		return d + ".", nil
+	}
+
+	return prefix + "." + d + ".", nil
+}
+
+func (s *AppVerifierService) resolverChain() []*net.Resolver {
+	var out []*net.Resolver
+
+	// 1) Explicit resolver from config/env (lets you force public DNS in VPC)
+	if s.cfg.DNSServerAddr != "" {
+		out = append(out, resolverForServer(s.cfg.DNSServerAddr, s.cfg.DNSTimeout))
+	}
+
+	// 2) System resolver (AWS VPC resolver is usually here)
+	out = append(out, net.DefaultResolver)
+
+	// 3) Public fallbacks (helpful for split-horizon/private zones)
+	out = append(out,
+		resolverForServer("1.1.1.1:53", s.cfg.DNSTimeout),
+		resolverForServer("8.8.8.8:53", s.cfg.DNSTimeout),
+	)
+
+	return out
+}
+
+func resolverForServer(serverAddr string, timeout time.Duration) *net.Resolver {
+	return &net.Resolver{
+		PreferGo: true,
+		Dial: func(ctx context.Context, network, _ string) (net.Conn, error) {
+			// Normalize network: udp4/tcp4/udp6/tcp6 → udp/tcp
+			switch network {
+			case "udp", "tcp":
+				// ok
+			case "udp4", "udp6":
+				network = "udp"
+			case "tcp4", "tcp6":
+				network = "tcp"
+			default:
+				network = "udp"
+			}
+
+			d := net.Dialer{Timeout: timeout}
+			return d.DialContext(ctx, network, serverAddr)
+		},
+	}
 }
